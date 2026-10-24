@@ -6,10 +6,6 @@ import streamlit as st
 from groq import Groq
 from pypdf import PdfReader
 
-# ============================================================
-# STUDY BUDDY AI â€” original learning workspace
-# Built with Streamlit + Groq + pypdf
-# ============================================================
 
 st.set_page_config(
     page_title="Study Buddy AI",
@@ -18,7 +14,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# -------------------------- STATE ----------------------------
 
 DEFAULTS = {
     "page": "Dashboard",
@@ -41,7 +36,6 @@ for key, value in DEFAULTS.items():
         st.session_state[key] = value
 
 
-# -------------------------- DESIGN ---------------------------
 
 st.markdown(
     """
@@ -107,7 +101,7 @@ st.markdown(
       box-shadow:0 18px 48px rgba(16,23,70,.25);
     }
     .hero:after {
-      content:"âœ¦   Â·   âœ§"; position:absolute; right:6%; top:18%;
+      content; position:absolute; right:6%; top:18%;
       font-size:31px; letter-spacing:17px; color:#A9F5FF; opacity:.65;
     }
     .hero h1 {font-size:35px !important;line-height:1.13;margin:10px 0 10px;}
