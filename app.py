@@ -286,11 +286,8 @@ elif page == "Quiz Maker":
 
     if not st.session_state.notes:
         st.warning("Add notes in My Notes before generating a quiz.")
-
-    count = st.select_slider(
-        "Number of questions",
-        options=[5, 10, 15, 20, 30, 50, 75, 100],
-        value=5
+count = st.number_input("Number of Questions", min_value=1, value=100, step=10)
+  
     )
 
     if st.button(
