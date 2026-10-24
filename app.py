@@ -1,7 +1,10 @@
+import base64
+from pathlib import Path
+from io import BytesIO
+
 import streamlit as st
 from groq import Groq
 from pypdf import PdfReader
-from io import BytesIO
 
 st.set_page_config(
     page_title="Study Buddy AI | Intelligent Learning Assistant",
@@ -12,33 +15,39 @@ st.set_page_config(
 
 def get_client():
     try:
-        key = st.secrets.get("GROQ_API_KEY", "")
+        api_key = st.secrets.get("GROQ_API_KEY", "")
     except Exception:
-        key = ""
+        api_key = ""
 
-    if not key:
+    if not api_key:
         return None
 
-    return Groq(api_key=key)
+    return Groq(api_key=api_key)
 
-def ask_ai(prompt, system="You are a helpful study assistant. Explain topics in simple English with clear headings and examples."):
+def ask_ai(prompt, system_message=None):
     client = get_client()
 
     if client is None:
         return "AI connection is not configured. Add GROQ_API_KEY in Streamlit Secrets."
 
+    if system_message is None:
+        system_message = (
+            "You are Study Buddy AI, a helpful academic tutor. "
+            "Explain topics in simple English with clear headings and examples."
+        )
+
     try:
-        result = client.chat.completions.create(
+        response = client.chat.completions.create(
             model="openai/gpt-oss-20b",
             messages=[
-                {"role": "system", "content": system},
+                {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.5
         )
-        return result.choices[0].message.content
+        return response.choices[0].message.content
     except Exception as error:
-        return f"Unable to get a response. Please check your API key and connection. {error}"
+        return f"Unable to get a response. Check your API key and connection. Details: {error}"
 
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
@@ -55,135 +64,208 @@ if "total_questions" not in st.session_state:
 if "correct_answers" not in st.session_state:
     st.session_state.correct_answers = 0
 
+if "selected_page" not in st.session_state:
+    st.session_state.selected_page = "Dashboard"
+
 st.markdown("""
 <style>
 .stApp {
-    background: #0b1020;
-    color: #edf1ff;
+    background: #071224;
+    color: #f4f6ff;
 }
 [data-testid="stSidebar"] {
-    background: #10172a;
-    border-right: 1px solid #27334d;
-}
-[data-testid="stSidebar"] .stRadio label {
-    padding-top: 5px;
-    padding-bottom: 5px;
+    background: #0c172c;
+    border-right: 1px solid #243653;
 }
 h1, h2, h3 {
     color: #f4f6ff;
-    letter-spacing: -0.4px;
 }
 p, label {
-    color: #c4cde0;
+    color: #c7d2e8;
 }
 hr {
-    border-color: #293650;
+    border-color: #273956;
 }
 div.stButton > button {
-    background: #6657d9;
+    background: #6557dc;
     color: white;
-    border: 1px solid #8175ed;
-    border-radius: 8px;
+    border: 1px solid #8276ed;
+    border-radius: 9px;
     min-height: 42px;
     font-weight: 600;
 }
 div.stButton > button:hover {
-    background: #7868eb;
+    background: #7869ec;
     color: white;
-    border-color: #a69cff;
 }
 [data-testid="stMetric"] {
-    background: #141e33;
-    border: 1px solid #2a3855;
-    padding: 18px;
+    background: #121f36;
+    border: 1px solid #2b3c5c;
+    padding: 16px;
     border-radius: 12px;
 }
 [data-testid="stChatMessage"] {
-    background: #141e33;
-    border: 1px solid #2a3855;
+    background: #121f36;
+    border: 1px solid #2b3c5c;
     border-radius: 10px;
 }
 .stTextInput input, .stTextArea textarea {
-    background: #121a2c;
-    color: #ffffff;
-    border-color: #35415d;
-}
-.stSelectbox div[data-baseweb="select"] > div {
-    background: #121a2c;
-    border-color: #35415d;
+    background: #101b30;
+    color: white;
 }
 [data-testid="stFileUploader"] {
-    background: #121a2c;
-    border: 1px dashed #465574;
+    background: #101b30;
+    border: 1px dashed #405577;
     border-radius: 10px;
     padding: 12px;
+}
+.hero-title {
+    font-size: 36px;
+    font-weight: 750;
+    line-height: 1.2;
+    color: #ffffff;
+}
+.hero-subtitle {
+    color: #d0dbef;
+    font-size: 16px;
+    line-height: 1.7;
+}
+.tool-card {
+    background: #111f38;
+    border: 1px solid #2b3c5c;
+    border-radius: 14px;
+    padding: 20px;
+    min-height: 175px;
+    margin-bottom: 12px;
+}
+.tool-card h3 {
+    font-size: 20px;
+    margin-bottom: 10px;
+}
+.tool-card p {
+    font-size: 14px;
+    line-height: 1.6;
+}
+.small-label {
+    color: #9badd0;
+    font-size: 12px;
+    letter-spacing: 2px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 with st.sidebar:
-    st.markdown(
-        "<div style='padding:10px 0 6px 0;'>"
-        "<div style='font-size:12px;letter-spacing:2px;color:#9aa9ca;'>LEARNING PLATFORM</div>"
-        "<div style='font-size:25px;font-weight:700;color:#ffffff;margin-top:8px;'>Study Buddy AI</div>"
-        "<div style='font-size:12px;color:#aebbd5;margin-top:5px;'>Intelligent Learning Assistant</div>"
-        "</div>",
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+    <div style="padding:12px 0 10px 0;">
+        <div style="font-size:12px;letter-spacing:2px;color:#91a9d4;">
+            LEARNING PLATFORM
+        </div>
+        <div style="font-size:26px;font-weight:750;color:white;margin-top:8px;">
+            Study Buddy AI
+        </div>
+        <div style="font-size:12px;color:#b5c3df;margin-top:5px;">
+            Intelligent Learning Assistant
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.divider()
+
+    pages = [
+        "Dashboard",
+        "AI Quiz",
+        "PDF Notes",
+        "Study Chat",
+        "Performance",
+        "Settings"
+    ]
+
+    selected_index = pages.index(st.session_state.selected_page)
 
     page = st.radio(
         "Workspace",
-        [
-            "Dashboard",
-            "AI Quiz",
-            "PDF Notes",
-            "Study Chat",
-            "Performance",
-            "Settings"
-        ],
-        label_visibility="visible"
+        pages,
+        index=selected_index
     )
 
-    st.divider()
-    st.caption("Study Buddy AI")
-    st.caption("Personal learning workspace")
+    st.session_state.selected_page = page
 
-st.markdown(
-    "<div style='padding:8px 0 22px 0;border-bottom:1px solid #293650;margin-bottom:25px;'>"
-    "<div style='font-size:12px;letter-spacing:2px;color:#9aa9ca;'>INTELLIGENT LEARNING ASSISTANT</div>"
-    "<h1 style='font-size:36px;margin:8px 0 4px 0;'>Study Buddy AI</h1>"
-    "<div style='font-size:15px;color:#aebbd5;'>Learn smarter. Practise better. Build confidence.</div>"
-    "</div>",
-    unsafe_allow_html=True
-)
+    st.divider()
+
+    st.caption("Study Buddy AI")
+    st.caption("Your personal learning workspace")
+
+st.markdown("""
+<div style="margin-bottom:22px;">
+    <div class="small-label">INTELLIGENT LEARNING ASSISTANT</div>
+    <h1 style="font-size:34px;margin:8px 0 4px 0;">
+        Study Buddy AI
+    </h1>
+    <div style="color:#aebdd8;">
+        Learn smarter. Practise better. Build confidence.
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 if page == "Dashboard":
-    st.markdown("## Dashboard")
-    st.write("Manage your study activities from one place.")
+    image_path = Path(__file__).parent / "dashboard.png"
 
-    a, b, c = st.columns(3)
+    if image_path.exists():
+        with open(image_path, "rb") as image_file:
+            image_data = base64.b64encode(image_file.read()).decode()
 
-    with a:
-        st.markdown("### AI Quiz")
-        st.write("Generate topic-based questions for practice.")
-        if st.button("Open AI Quiz", key="dash_quiz"):
-            st.session_state["selected_page"] = "AI Quiz"
+        st.markdown(
+            f"""
+            <div style="width:100%;margin-bottom:24px;">
+                <img src="data:image/png;base64,{image_data}"
+                style="width:100%;max-height:380px;object-fit:cover;
+                border-radius:16px;border:1px solid #293d60;">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.info(
+            "Upload dashboard.png to the same GitHub folder as app.py "
+            "to display your dashboard banner."
+        )
+
+    st.markdown("## Welcome to your study space")
+    st.write("Choose a tool to begin your learning session.")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        <div class="tool-card">
+            <h3>AI Quiz</h3>
+            <p>Generate topic-based questions and practise important concepts.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open AI Quiz", key="open_quiz"):
+            st.session_state.selected_page = "AI Quiz"
             st.rerun()
 
-    with b:
-        st.markdown("### PDF Notes")
-        st.write("Convert study material into revision notes.")
-        if st.button("Open PDF Notes", key="dash_pdf"):
-            st.session_state["selected_page"] = "PDF Notes"
+    with col2:
+        st.markdown("""
+        <div class="tool-card">
+            <h3>PDF Notes</h3>
+            <p>Turn your study material into clear revision notes and summaries.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open PDF Notes", key="open_pdf"):
+            st.session_state.selected_page = "PDF Notes"
             st.rerun()
 
-    with c:
-        st.markdown("### Study Chat")
-        st.write("Ask questions and understand concepts.")
-        if st.button("Open Study Chat", key="dash_chat"):
-            st.session_state["selected_page"] = "Study Chat"
+    with col3:
+        st.markdown("""
+        <div class="tool-card">
+            <h3>Study Chat</h3>
+            <p>Ask academic questions and get step-by-step explanations.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Open Study Chat", key="open_chat"):
+            st.session_state.selected_page = "Study Chat"
             st.rerun()
 
     st.markdown("---")
@@ -193,33 +275,53 @@ if page == "Dashboard":
     correct = st.session_state.correct_answers
     accuracy = round(correct / total * 100) if total else 0
 
-    x, y, z = st.columns(3)
-    x.metric("Questions Attempted", total)
-    y.metric("Correct Answers", correct)
-    z.metric("Accuracy", f"{accuracy}%")
+    a, b, c = st.columns(3)
+    a.metric("Questions Attempted", total)
+    b.metric("Correct Answers", correct)
+    c.metric("Accuracy", f"{accuracy}%")
 
-    st.markdown("### Quick Start")
-    st.info("Select a tool from the sidebar to begin your study session.")
+    st.markdown("""
+    <div style="background:#111f38;border:1px solid #293d60;
+    border-radius:12px;padding:18px;margin-top:15px;">
+        <div style="font-size:18px;font-weight:650;color:#ffffff;">
+            Ready to start?
+        </div>
+        <div style="color:#b7c6df;margin-top:6px;">
+            Select a tool and make progress towards your learning goals.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 elif page == "AI Quiz":
     st.markdown("## AI Quiz")
-    st.write("Create practice questions from your syllabus or any topic.")
+    st.write("Create practice questions from your chosen topic.")
 
-    topic = st.text_input("Subject or topic", placeholder="Example: C programming functions")
-    difficulty = st.selectbox("Difficulty level", ["Easy", "Medium", "Hard"])
-    number = st.number_input("Number of questions", min_value=1, max_value=30, value=5)
+    topic = st.text_input(
+        "Subject or topic",
+        placeholder="Example: C programming functions"
+    )
+    difficulty = st.selectbox(
+        "Difficulty level",
+        ["Easy", "Medium", "Hard"]
+    )
+    number = st.number_input(
+        "Number of questions",
+        min_value=1,
+        max_value=30,
+        value=5
+    )
 
     if st.button("Generate Questions"):
         if not topic.strip():
-            st.warning("Enter a topic first.")
+            st.warning("Please enter a topic first.")
         else:
-            with st.spinner("Preparing questions..."):
+            with st.spinner("Preparing your questions..."):
                 prompt = f"""
-Create {number} multiple-choice questions about {topic}.
+Create {number} multiple-choice practice questions on {topic}.
 Difficulty: {difficulty}.
-For every question provide four options labelled A, B, C and D.
-Show the correct answer and a short explanation after each question.
-Use clear, simple English and number the questions.
+Give four options labelled A, B, C and D for each question.
+Show the correct answer and a short explanation.
+Use simple English and number every question.
 """
                 st.session_state.quiz_result = ask_ai(prompt)
 
@@ -227,43 +329,55 @@ Use clear, simple English and number the questions.
         st.markdown("---")
         st.markdown("### Generated Questions")
         st.markdown(st.session_state.quiz_result)
+
         st.download_button(
             "Download Questions",
             st.session_state.quiz_result,
-            file_name="study_quiz.txt",
+            file_name="study_buddy_quiz.txt",
             mime="text/plain"
         )
 
 elif page == "PDF Notes":
     st.markdown("## PDF Notes")
-    st.write("Upload a PDF to prepare study notes from its text.")
+    st.write("Upload a PDF to create revision notes from its text.")
 
-    uploaded = st.file_uploader("Upload study PDF", type=["pdf"])
-    style = st.selectbox(
+    uploaded_file = st.file_uploader(
+        "Upload study PDF",
+        type=["pdf"]
+    )
+
+    note_style = st.selectbox(
         "Notes format",
-        ["Short revision notes", "Detailed notes", "Important questions", "Simple explanation"]
+        [
+            "Short revision notes",
+            "Detailed notes",
+            "Important questions",
+            "Simple explanation"
+        ]
     )
 
     if st.button("Create Notes"):
-        if uploaded is None:
-            st.warning("Upload a PDF first.")
+        if uploaded_file is None:
+            st.warning("Please upload a PDF first.")
         else:
             try:
-                reader = PdfReader(BytesIO(uploaded.getvalue()))
-                content = "\n".join(
-                    page.extract_text() or "" for page in reader.pages
+                reader = PdfReader(BytesIO(uploaded_file.getvalue()))
+                extracted_text = "\n".join(
+                    pdf_page.extract_text() or ""
+                    for pdf_page in reader.pages
                 )
 
-                if not content.strip():
-                    st.error("No readable text was found in this PDF.")
+                if not extracted_text.strip():
+                    st.error("No readable text found in this PDF.")
                 else:
-                    with st.spinner("Preparing notes..."):
+                    with st.spinner("Preparing your notes..."):
                         prompt = f"""
-Create {style.lower()} using the study material below.
-Use clear headings, bullet points and simple English.
-Do not add unsupported facts.
+Create {note_style.lower()} from the study material below.
+Use simple English, headings and bullet points.
+Keep the notes faithful to the source material.
+
 Study material:
-{content[:24000]}
+{extracted_text[:24000]}
 """
                         st.session_state.notes_result = ask_ai(prompt)
 
@@ -274,22 +388,23 @@ Study material:
         st.markdown("---")
         st.markdown("### Your Notes")
         st.markdown(st.session_state.notes_result)
+
         st.download_button(
             "Download Notes",
             st.session_state.notes_result,
-            file_name="study_notes.txt",
+            file_name="study_buddy_notes.txt",
             mime="text/plain"
         )
 
 elif page == "Study Chat":
     st.markdown("## Study Chat")
-    st.write("Ask academic questions and get step-by-step explanations.")
+    st.write("Ask questions about your subjects, formulas or programming.")
 
-    for item in st.session_state.chat_history:
-        with st.chat_message(item["role"]):
-            st.markdown(item["content"])
+    for message in st.session_state.chat_history:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-    prompt = st.chat_input("Enter your question")
+    prompt = st.chat_input("Enter your study question")
 
     if prompt:
         st.session_state.chat_history.append(
@@ -300,10 +415,11 @@ elif page == "Study Chat":
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Preparing an explanation..."):
+            with st.spinner("Preparing your answer..."):
                 answer = ask_ai(
                     prompt,
-                    "You are Study Buddy AI, a patient academic tutor. Explain in simple English, step by step, with examples when helpful."
+                    "You are Study Buddy AI, a patient academic tutor. "
+                    "Explain step by step in simple English with examples."
                 )
                 st.markdown(answer)
 
@@ -317,7 +433,7 @@ elif page == "Study Chat":
 
 elif page == "Performance":
     st.markdown("## Performance")
-    st.write("Review the practice statistics recorded during this session.")
+    st.write("Review the statistics recorded during this session.")
 
     total = st.session_state.total_questions
     correct = st.session_state.correct_answers
@@ -331,19 +447,23 @@ elif page == "Performance":
     if total:
         st.progress(accuracy / 100)
     else:
-        st.info("Practice statistics will appear here when scored quiz attempts are added.")
+        st.info(
+            "Your statistics will appear here when scored quiz attempts are added."
+        )
 
-    st.caption("These statistics are session-based and may reset when the app restarts.")
+    st.caption(
+        "Statistics are session-based and may reset when the app restarts."
+    )
 
 elif page == "Settings":
     st.markdown("## Settings")
-    st.write("Manage the AI connection for your learning workspace.")
+    st.write("Check the AI connection and project information.")
 
-    client = get_client()
-
-    if client is None:
+    if get_client() is None:
         st.warning("AI connection is not configured.")
-        st.write("Open Streamlit Cloud, go to your app settings, and add this secret:")
+        st.write(
+            "Open Streamlit Cloud, go to app settings, and add the secret below."
+        )
         st.code('GROQ_API_KEY = "your_api_key"')
     else:
         st.success("An API key is configured.")
@@ -351,5 +471,5 @@ elif page == "Settings":
     st.markdown("---")
     st.markdown("### Project Information")
     st.write("Project Name: Study Buddy AI")
-    st.write("Project Type: Intelligent Learning Assistant")
+    st.write("Project Category: Intelligent Learning Assistant")
     st.write("Technology: Python, Streamlit and Groq API")
