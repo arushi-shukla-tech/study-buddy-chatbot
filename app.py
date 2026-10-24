@@ -59,7 +59,7 @@ def ask_ai(prompt):
 
     try:
         response = client.chat.completions.create(
-            model="openai/gpt-oss-20b", 
+            model="openai/gpt-oss-20b",
             messages=[
                 {
                     "role": "system",
@@ -68,7 +68,7 @@ def ask_ai(prompt):
                 {"role": "user", "content": prompt}
             ],
             temperature=0.4,
-            max_tokens=2500
+            max_tokens=4000
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -76,48 +76,82 @@ def ask_ai(prompt):
 
 
 def make_quiz(notes, count):
-    prompt = f"""
-Create exactly {count} multiple-choice questions from these notes.
-Return ONLY a valid JSON array without Markdown.
+    all_questions = []
+    seen = set()
+    batch_size = 5
 
-Each question must contain:
+    for start in range(0, count, batch_size):
+        batch_count = min(batch_size, count - start)
+
+        prompt = f"""
+Create exactly {batch_count} different multiple-choice questions
+from these study notes.
+
+Return ONLY a valid JSON array. Do not use Markdown.
+
+Each item must contain:
 "question": question text
-"options": list of exactly four choices
+"options": exactly four answer choices as a list of strings
 "answer": exact correct option text
 "explanation": short explanation
 
 NOTES:
-{notes[:18000]}
+{notes[:10000]}
 """
-    result = ask_ai(prompt)
 
-    try:
-        match = re.search(r"\[.*\]", result, re.DOTALL)
-        if not match:
-            raise ValueError("Invalid response")
+        result = ask_ai(prompt)
 
-        data = json.loads(match.group(0))
-        valid = []
+        try:
+            match = re.search(r"\[.*\]", result, re.DOTALL)
 
-        for item in data:
-            if (
-                isinstance(item, dict)
-                and isinstance(item.get("question"), str)
-                and isinstance(item.get("options"), list)
-                and len(item["options"]) == 4
-                and isinstance(item.get("answer"), str)
-            ):
-                valid.append(item)
+            if not match:
+                continue
 
-        return valid
-    except Exception:
-        st.error("Quiz generation failed. Please try again.")
-        with st.expander("Error details"):
-            st.write(result[:1500])
-        return []
+            data = json.loads(match.group(0))
+
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+
+                question = item.get("question")
+                options = item.get("options")
+                answer = item.get("answer")
+                explanation = item.get("explanation", "")
+
+                if not isinstance(question, str):
+                    continue
+
+                if not isinstance(options, list) or len(options) != 4:
+                    continue
+
+                if not all(isinstance(option, str) for option in options):
+                    continue
+
+                if not isinstance(answer, str) or answer not in options:
+                    continue
+
+                key = question.strip().lower()
+
+                if key in seen:
+                    continue
+
+                seen.add(key)
+
+                all_questions.append({
+                    "question": question,
+                    "options": options,
+                    "answer": answer,
+                    "explanation": explanation
+                })
+
+        except Exception:
+            continue
+
+    return all_questions[:count]
 
 
 st.sidebar.title("📚 Study Menu")
+
 page = st.sidebar.radio(
     "Choose a section",
     ["Dashboard", "My Notes", "AI Chat", "Quiz Maker"]
@@ -129,13 +163,16 @@ if page == "Dashboard":
     st.header("📊 Your Dashboard")
 
     col1, col2, col3 = st.columns(3)
+
     col1.metric("Questions Answered", st.session_state.total_answered)
     col2.metric("Correct Answers", st.session_state.score)
 
     accuracy = 0
+
     if st.session_state.total_answered:
         accuracy = round(
-            st.session_state.score / st.session_state.total_answered * 100
+            st.session_state.score /
+            st.session_state.total_answered * 100
         )
 
     col3.metric("Accuracy", f"{accuracy}%")
@@ -154,12 +191,16 @@ if page == "Dashboard":
 elif page == "My Notes":
     st.header("📖 My Notes")
 
-    uploaded_file = st.file_uploader("Upload PDF notes", type=["pdf"])
+    uploaded_file = st.file_uploader(
+        "Upload PDF notes",
+        type=["pdf"]
+    )
 
     if uploaded_file is not None:
         if st.button("Read PDF"):
             try:
                 reader = PdfReader(uploaded_file)
+
                 text = "\n".join(
                     pdf_page.extract_text() or ""
                     for pdf_page in reader.pages
@@ -170,6 +211,7 @@ elif page == "My Notes":
                     st.success("PDF notes loaded.")
                 else:
                     st.warning("No text found in this PDF.")
+
             except Exception as e:
                 st.error("PDF error: " + str(e))
 
@@ -184,7 +226,9 @@ elif page == "My Notes":
         st.success("Notes saved.")
 
     if st.session_state.notes:
-        st.caption(f"Characters saved: {len(st.session_state.notes)}")
+        st.caption(
+            f"Characters saved: {len(st.session_state.notes)}"
+        )
 
         if st.button("Summarise My Notes"):
             with st.spinner("Preparing summary..."):
@@ -192,6 +236,7 @@ elif page == "My Notes":
                     "Summarise these notes with headings and simple language:\n\n"
                     + st.session_state.notes[:18000]
                 )
+
             st.markdown(summary)
 
 elif page == "AI Chat":
@@ -213,7 +258,11 @@ elif page == "AI Chat":
 
         prompt = (
             "Answer clearly and simply.\n\nNOTES:\n"
-            + (st.session_state.notes[:12000] or "No notes provided.")
+            + (
+                st.session_state.notes[:12000]
+                if st.session_state.notes
+                else "No notes provided."
+            )
             + "\n\nQUESTION:\n"
             + question
         )
@@ -221,6 +270,7 @@ elif page == "AI Chat":
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 answer = ask_ai(prompt)
+
             st.markdown(answer)
 
         st.session_state.chat.append(
@@ -248,13 +298,18 @@ elif page == "Quiz Maker":
         disabled=not bool(st.session_state.notes)
     ):
         with st.spinner("Generating quiz..."):
-            questions = make_quiz(st.session_state.notes, count)
+            questions = make_quiz(
+                st.session_state.notes,
+                count
+            )
 
         if questions:
             st.session_state.quiz = questions
             st.session_state.quiz_index = 0
             st.session_state.answered = []
             st.rerun()
+        else:
+            st.error("Quiz generation failed. Try again.")
 
     if st.session_state.quiz:
         questions = st.session_state.quiz
@@ -262,8 +317,11 @@ elif page == "Quiz Maker":
 
         if index < len(questions):
             item = questions[index]
+
             st.progress((index + 1) / len(questions))
-            st.subheader(f"Question {index + 1} of {len(questions)}")
+            st.subheader(
+                f"Question {index + 1} of {len(questions)}"
+            )
             st.write(item["question"])
 
             already_answered = index in st.session_state.answered
@@ -303,11 +361,15 @@ elif page == "Quiz Maker":
                         st.rerun()
                 else:
                     st.success("Quiz completed!")
+
                     correct_count = sum(
                         1 for i in st.session_state.answered
                         if st.session_state.get(f"result_{i}", False)
                     )
-                    st.write(f"Score: {correct_count}/{len(questions)}")
+
+                    st.write(
+                        f"Score: {correct_count}/{len(questions)}"
+                    )
 
         if st.button("🔄 Generate More Questions"):
             st.session_state.quiz = []
