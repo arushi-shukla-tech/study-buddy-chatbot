@@ -1,420 +1,266 @@
 import streamlit as st
-from groq import Groq
-from pypdf import PdfReader
+import json
+import re
 from io import BytesIO
 from datetime import datetime
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from groq import Groq
+from pypdf import PdfReader
+from reportlab.platypus import (
+    SimpleDocTemplate, Paragraph, Spacer, PageBreak
+)
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from xml.sax.saxutils import escape
-import json
-import re
-import html
+
 
 st.set_page_config(
     page_title="Study Buddy AI",
-    page_icon="📚",
+    page_icon="📘",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+
+# ---------- DESIGN ----------
+
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
-
-:root {
-    --green: #405D4B;
-    --green-dark: #2E4537;
-    --sage: #E8EEE7;
-    --paper: #F7F8F5;
-    --ink: #252C27;
-    --muted: #788178;
-    --line: #E4E8E1;
-}
-
-html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
-    color: var(--ink);
-}
-
 .stApp {
-    background: var(--paper);
+    background: #0b1020;
+    color: #edf2ff;
 }
-
-[data-testid="stHeader"] {
-    background: transparent;
-}
-
 [data-testid="stSidebar"] {
-    background: #FFFFFF;
-    border-right: 1px solid var(--line);
+    background: #111a30;
+    border-right: 1px solid #25314e;
 }
-
-[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
-    color: #58645A;
-}
-
-h1, h2, h3 {
-    font-family: 'Manrope', sans-serif !important;
-    letter-spacing: -0.6px;
-    color: var(--ink);
-}
-
-h1 { font-weight: 800 !important; }
-h2, h3 { font-weight: 700 !important; }
-
 .block-container {
-    max-width: 1440px;
-    padding-top: 1.6rem;
+    padding-top: 1.8rem;
     padding-bottom: 3rem;
+    max-width: 1250px;
 }
-
+h1, h2, h3 {
+    color: #f3f6ff !important;
+}
+p, label, li {
+    color: #c7d2e8;
+}
 [data-testid="stMetric"] {
-    background: #FFFFFF;
-    padding: 20px;
-    border: 1px solid var(--line);
-    border-radius: 17px;
+    background: #151f37;
+    border: 1px solid #2a3858;
+    padding: 18px;
+    border-radius: 15px;
 }
-
-[data-testid="stMetricLabel"] {
-    color: var(--muted);
-}
-
-[data-testid="stMetricValue"] {
-    color: var(--green-dark);
-    font-family: 'Manrope', sans-serif;
-    font-weight: 800;
-}
-
-.stButton > button,
-.stDownloadButton > button {
+div.stButton > button {
+    background: #5268f5;
+    color: white;
+    border: none;
     border-radius: 10px;
     min-height: 42px;
     font-weight: 600;
-    border: 1px solid #DCE3DA;
-    transition: 0.2s ease;
 }
-
-.stButton > button[kind="primary"],
-.stDownloadButton > button[kind="primary"] {
-    background: var(--green);
-    color: white;
-    border: 1px solid var(--green);
-}
-
-.stButton > button:hover {
-    border-color: var(--green);
-    color: var(--green-dark);
-}
-
-.stButton > button[kind="primary"]:hover {
-    background: var(--green-dark);
+div.stButton > button:hover {
+    background: #7182ff;
     color: white;
 }
-
-.stTextInput input,
-.stTextArea textarea,
-.stSelectbox [data-baseweb="select"],
-.stNumberInput input {
-    border-radius: 10px;
+div[data-testid="stForm"] {
+    background: #111a30;
+    border: 1px solid #25314e;
+    padding: 18px;
+    border-radius: 14px;
 }
-
-[data-testid="stFileUploader"] {
-    background: #FFFFFF;
-    border: 1px dashed #BAC9BA;
-    border-radius: 15px;
-    padding: 10px;
-}
-
-[data-testid="stExpander"] {
-    background: #FFFFFF;
-    border: 1px solid var(--line);
+div[data-testid="stAlert"] {
     border-radius: 12px;
 }
-
-.hero {
-    position: relative;
-    overflow: hidden;
-    border-radius: 24px;
-    min-height: 300px;
-    display: flex;
-    align-items: center;
-    padding: 38px;
-    color: white;
-    background:
-      linear-gradient(90deg, rgba(27,47,35,.96) 0%,
-      rgba(37,62,46,.86) 48%, rgba(37,62,46,.12) 100%),
-      url("https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1800&q=85")
-      center/cover;
-    margin-bottom: 25px;
-}
-
-.hero-content {
-    max-width: 590px;
-}
-
-.eyebrow {
-    display: inline-block;
-    background: rgba(255,255,255,.14);
-    border: 1px solid rgba(255,255,255,.25);
-    padding: 7px 12px;
-    border-radius: 30px;
-    font-size: 12px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: #E6F0E5;
-    margin-bottom: 15px;
-}
-
-.hero h1 {
-    color: white !important;
-    font-size: clamp(30px, 4vw, 48px);
-    line-height: 1.13;
-    margin: 0 0 12px 0;
-}
-
-.hero p {
-    color: #E2E9E0;
-    font-size: 15px;
-    line-height: 1.8;
-    max-width: 480px;
-    margin: 0;
-}
-
-.section-label {
-    color: var(--green);
-    font-size: 12px;
-    text-transform: uppercase;
-    font-weight: 700;
-    letter-spacing: 1.4px;
-    margin-bottom: 6px;
-}
-
-.feature-card {
-    background: white;
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 22px;
-    min-height: 190px;
-    height: 100%;
-}
-
-.feature-icon {
-    display: inline-flex;
-    width: 47px;
-    height: 47px;
-    border-radius: 14px;
-    align-items: center;
-    justify-content: center;
-    background: var(--sage);
-    font-size: 23px;
-    margin-bottom: 17px;
-}
-
-.feature-card h3 {
-    font-size: 17px;
-    margin: 0 0 8px 0;
-}
-
-.feature-card p {
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.7;
-    margin: 0;
-}
-
-.panel {
-    background: white;
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 22px;
-    margin-bottom: 16px;
-}
-
-.small-muted {
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.7;
-}
-
-div[data-testid="stProgressBar"] > div > div {
-    background-color: var(--green);
-}
-
-hr {
-    border-color: var(--line);
-}
-
-@media (max-width: 700px) {
-    .block-container {
-        padding-left: 1rem;
-        padding-right: 1rem;
-    }
-    .hero {
-        padding: 25px;
-        min-height: 270px;
-    }
-    [data-testid="stMetric"] {
-        padding: 12px;
-    }
+.stTextInput input, .stTextArea textarea {
+    background: #111a30;
+    color: #f3f6ff;
 }
 </style>
 """, unsafe_allow_html=True)
 
-DEFAULT_MODEL = "openai/gpt-oss-20b"
 
-def initialize_state():
-    defaults = {
-        "page": "Dashboard",
-        "quiz": [],
-        "quiz_answers": {},
-        "quiz_result": None,
-        "quiz_history": [],
-        "pdf_text": "",
-        "pdf_name": "",
-        "pdf_output": "",
-        "chat_history": [],
-        "activities": [],
-        "quiz_topic": "",
-        "quiz_subject": "General",
-        "quiz_count": 10,
-        "quiz_difficulty": "Medium",
-        "quiz_language": "Simple English",
-        "last_quiz": None
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+# ---------- SESSION DATA ----------
 
-initialize_state()
+DEFAULTS = {
+    "nav_page": "Dashboard",
+    "quiz_history": [],
+    "notes_created": 0,
+    "chat_messages": [],
+    "last_notes": "",
+    "last_pdf_name": "",
+    "quiz_data": [],
+    "quiz_topic": "",
+    "quiz_submitted": False,
+    "quiz_result": None,
+    "quiz_language": "Simple English",
+    "quiz_count": 10,
+    "notes_language": "Simple English",
+    "notes_type": "Exam Notes",
+    "chat_language": "Simple English",
+    "session_api_key": "",
+    "last_activity": "Not yet",
+    "total_questions": 0
+}
+
+for key, value in DEFAULTS.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+
+def set_page(page):
+    st.session_state["nav_page"] = page
+
 
 def get_api_key():
+    key = st.session_state.get("session_api_key", "").strip()
+
+    if key:
+        return key
+
     try:
-        key = st.secrets.get("GROQ_API_KEY", "")
-        if key:
-            return key
+        return st.secrets["GROQ_API_KEY"]
     except Exception:
-        pass
-    return st.session_state.get("manual_api_key", "")
+        return ""
 
-def get_client():
-    key = get_api_key()
-    if not key:
-        return None
-    return Groq(api_key=key)
 
-def ask_ai(prompt, system=None, temperature=0.4, max_tokens=3500):
-    client = get_client()
-    if client is None:
+def ask_ai(prompt, temperature=0.3):
+    api_key = get_api_key()
+
+    if not api_key:
         raise ValueError(
-            "Groq API key is missing. Add GROQ_API_KEY in Streamlit Secrets."
+            "Groq API key nahi mili. Settings page mein API key add karo."
         )
 
-    messages = []
-    if system:
-        messages.append({"role": "system", "content": system})
-    messages.append({"role": "user", "content": prompt})
+    client = Groq(api_key=api_key)
 
     response = client.chat.completions.create(
-        model=DEFAULT_MODEL,
-        messages=messages,
+        model="openai/gpt-oss-20b",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are Study Buddy AI, a helpful college study "
+                    "assistant. Give accurate, well-organized answers "
+                    "in the requested language. Use clear headings "
+                    "and simple explanations."
+                )
+            },
+            {"role": "user", "content": prompt}
+        ],
         temperature=temperature,
-        max_tokens=max_tokens
+        max_completion_tokens=6000
     )
+
     return response.choices[0].message.content.strip()
 
-def log_activity(label):
-    st.session_state.activities.insert(0, {
-        "activity": label,
-        "time": datetime.now().strftime("%d %b %Y, %I:%M %p")
-    })
-    st.session_state.activities = st.session_state.activities[:50]
 
 def extract_json(text):
-    text = re.sub(r"```(?:json)?", "", text, flags=re.IGNORECASE)
-    text = text.replace("```", "").strip()
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?", "", text).strip()
+    text = re.sub(r"```$", "", text).strip()
 
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        pass
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end > start:
+            return json.loads(text[start:end + 1])
+        raise ValueError("AI ka response valid JSON mein nahi aaya.")
 
-    match = re.search(r"\{.*\}|\[.*\]", text, flags=re.DOTALL)
-    if match:
-        return json.loads(match.group(0))
 
-    raise ValueError("AI returned an invalid response. Please try again.")
+def generate_quiz_batch(topic, count, language, previous_questions):
+    previous_text = "\n".join(
+        f"- {question}" for question in previous_questions[-100:]
+    )
+    if not previous_text:
+        previous_text = "None"
 
-def generate_quiz_batch(topic, subject, count, difficulty, language):
     prompt = f"""
 Create exactly {count} multiple-choice questions for a student.
 
-Subject: {subject}
-Topic: {topic}
-Difficulty: {difficulty}
+Topic or source:
+{topic}
+
 Language: {language}
 
-Rules:
-- Each question must have exactly four options.
-- Only one option must be correct.
-- Use clear, educational questions.
-- Do not repeat questions.
-- Give a short explanation for the correct answer.
-- Return valid JSON only, with no Markdown.
+Avoid repeating these earlier questions:
+{previous_text}
 
-Required JSON format:
+Return ONLY valid JSON in this exact structure:
 {{
   "questions": [
     {{
       "question": "Question text",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "options": [
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D"
+      ],
       "answer": 0,
       "explanation": "Short explanation"
     }}
   ]
 }}
-The answer field must be a zero-based integer from 0 to 3.
-"""
-    raw = ask_ai(
-        prompt,
-        system="You are an accurate educational question writer. Return valid JSON only.",
-        temperature=0.3,
-        max_tokens=max(2500, count * 250)
-    )
-    data = extract_json(raw)
-    questions = data.get("questions", []) if isinstance(data, dict) else data
 
-    valid = []
-    for q in questions:
-        if not isinstance(q, dict):
+Rules:
+- Create exactly {count} questions.
+- Each question must have exactly four options.
+- The answer must be an integer: 0, 1, 2, or 3.
+- Make the questions useful for college-level revision.
+- Do not include markdown fences or text outside the JSON.
+- Keep questions distinct and explanations understandable.
+"""
+
+    raw = ask_ai(prompt, temperature=0.4)
+    data = extract_json(raw)
+    questions = data.get("questions", [])
+
+    cleaned = []
+
+    for item in questions:
+        if not isinstance(item, dict):
             continue
-        options = q.get("options", [])
-        answer = q.get("answer")
-        if not isinstance(options, list) or len(options) != 4:
+
+        question = str(item.get("question", "")).strip()
+        options = item.get("options", [])
+        answer = item.get("answer", 0)
+        explanation = str(item.get("explanation", "")).strip()
+
+        if not question or not isinstance(options, list):
             continue
+
+        if len(options) != 4:
+            continue
+
         try:
             answer = int(answer)
         except (ValueError, TypeError):
             continue
-        if not 0 <= answer <= 3:
-            continue
-        if not q.get("question"):
+
+        if answer not in [0, 1, 2, 3]:
             continue
 
-        valid.append({
-            "question": str(q["question"]),
-            "options": [str(x) for x in options],
+        cleaned.append({
+            "question": question,
+            "options": [str(option) for option in options],
             "answer": answer,
-            "explanation": str(q.get("explanation", "Review the correct concept."))
+            "explanation": explanation
         })
 
-    return valid
+    if not cleaned:
+        raise ValueError("Valid questions generate nahi hue. Dobara try karo.")
 
-def make_pdf(text, title="Study Buddy AI Notes"):
-    buffer = BytesIO()
+    return cleaned
+
+
+def create_notes_pdf(title, content):
+    output = BytesIO()
+
     document = SimpleDocTemplate(
-        buffer,
+        output,
         pagesize=(8.27 * inch, 11.69 * inch),
         rightMargin=0.65 * inch,
         leftMargin=0.65 * inch,
@@ -423,83 +269,62 @@ def make_pdf(text, title="Study Buddy AI Notes"):
     )
 
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        "CustomTitle",
+
+    styles.add(ParagraphStyle(
+        name="MainTitle",
         parent=styles["Title"],
         fontName="Helvetica-Bold",
         fontSize=20,
         leading=26,
-        textColor=colors.HexColor("#405D4B"),
+        textColor=colors.HexColor("#253c80"),
         spaceAfter=18
-    )
-    body_style = ParagraphStyle(
-        "CustomBody",
+    ))
+
+    styles.add(ParagraphStyle(
+        name="NoteBody",
         parent=styles["BodyText"],
         fontName="Helvetica",
         fontSize=10,
         leading=15,
-        textColor=colors.HexColor("#303730"),
         spaceAfter=8
-    )
-    story = [Paragraph(escape(title), title_style)]
+    ))
 
-    for line in text.splitlines():
-        safe_line = escape(line) if line.strip() else "&nbsp;"
-        story.append(Paragraph(safe_line, body_style))
-        story.append(Spacer(1, 3))
+    story = [
+        Paragraph(escape(title), styles["MainTitle"]),
+        Paragraph(
+            "Generated by Study Buddy AI",
+            styles["Italic"]
+        ),
+        Spacer(1, 12)
+    ]
+
+    for line in content.splitlines():
+        safe_line = escape(line.strip())
+
+        if not safe_line:
+            story.append(Spacer(1, 7))
+        elif line.strip().startswith("#"):
+            heading = escape(line.strip().lstrip("# ").strip())
+            story.append(Paragraph(heading, styles["Heading2"]))
+        else:
+            story.append(Paragraph(safe_line, styles["NoteBody"]))
 
     document.build(story)
-    buffer.seek(0)
-    return buffer.getvalue()
+    output.seek(0)
+    return output.getvalue()
 
-def download_buttons(text, filename, title):
-    st.download_button(
-        "Download TXT",
-        data=text.encode("utf-8"),
-        file_name=filename + ".txt",
-        mime="text/plain",
-        use_container_width=True
-    )
-    pdf_data = make_pdf(text, title)
-    st.download_button(
-        "Download PDF",
-        data=pdf_data,
-        file_name=filename + ".pdf",
-        mime="application/pdf",
-        use_container_width=True
+
+def record_activity():
+    st.session_state["last_activity"] = datetime.now().strftime(
+        "%d %b %Y, %I:%M %p"
     )
 
-def hero(title, subtitle, eyebrow="YOUR PERSONAL LEARNING SPACE"):
-    safe_title = html.escape(title)
-    safe_subtitle = html.escape(subtitle)
-    safe_eyebrow = html.escape(eyebrow)
-    st.markdown(f"""
-    <div class="hero">
-      <div class="hero-content">
-        <div class="eyebrow">{safe_eyebrow}</div>
-        <h1>{safe_title}</h1>
-        <p>{safe_subtitle}</p>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
 
-def feature_card(icon, title, description):
-    st.markdown(f"""
-    <div class="feature-card">
-      <div class="feature-icon">{icon}</div>
-      <h3>{html.escape(title)}</h3>
-      <p>{html.escape(description)}</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-def page_title(title, description):
-    st.title(title)
-    st.markdown(f'<p class="small-muted">{html.escape(description)}</p>',
-                unsafe_allow_html=True)
+# ---------- SIDEBAR ----------
 
 with st.sidebar:
-    st.markdown("## 📚 Study Buddy AI")
-    st.caption("A smarter way to study")
+    st.markdown("## 📘 Study Buddy AI")
+    st.caption("Your personal study workspace")
     st.divider()
 
     pages = [
@@ -511,551 +336,579 @@ with st.sidebar:
         "Settings"
     ]
 
-    selected_page = st.radio(
-        "WORKSPACE",
+    current_page = st.session_state["nav_page"]
+    if current_page not in pages:
+        current_page = "Dashboard"
+
+    st.radio(
+        "NAVIGATION",
         pages,
-        index=pages.index(st.session_state.page)
-        if st.session_state.page in pages else 0
+        index=pages.index(current_page),
+        key="nav_page"
     )
-    st.session_state.page = selected_page
 
     st.divider()
-    if get_api_key():
-        st.success("AI connection key found")
-    else:
-        st.warning("API key not configured")
+    st.caption("Study smarter. Learn better.")
 
-    st.markdown(
-        '<p class="small-muted">Learn at your own pace. '
-        'Your workspace, your progress.</p>',
-        unsafe_allow_html=True
-    )
 
-page = st.session_state.page
+page = st.session_state["nav_page"]
+
+
+# ---------- DASHBOARD ----------
 
 if page == "Dashboard":
-    hero(
-        "Make every study session count.",
-        "Turn your notes into knowledge. Create practice quizzes, "
-        "understand difficult topics and build better study habits.",
-        "WELCOME TO YOUR LEARNING WORKSPACE"
+    st.markdown("# Welcome to Study Buddy AI")
+    st.write(
+        "Your personal workspace for notes, quizzes and focused learning."
     )
+
+    st.write("")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Quizzes completed", len(st.session_state.quiz_history))
-    col2.metric("Notes uploaded", 1 if st.session_state.pdf_text else 0)
-    col3.metric("Chat messages", len(st.session_state.chat_history))
 
-    st.markdown("### Your workspace")
-    st.markdown(
-        '<p class="small-muted">Everything you need, in one place.</p>',
-        unsafe_allow_html=True
+    with col1:
+        st.metric(
+            "Quizzes completed",
+            len(st.session_state["quiz_history"])
+        )
+
+    with col2:
+        st.metric(
+            "Notes generated",
+            st.session_state["notes_created"]
+        )
+
+    with col3:
+        st.metric(
+            "Questions attempted",
+            st.session_state["total_questions"]
+        )
+
+    st.write("")
+    st.markdown("### Your study workspace")
+
+    a, b = st.columns(2)
+
+    with a:
+        with st.container(border=True):
+            st.markdown("#### 📝 AI Quiz")
+            st.write(
+                "Create topic-based MCQs, attempt them and review "
+                "your answers with explanations."
+            )
+            if st.button("Open AI Quiz", use_container_width=True):
+                set_page("AI Quiz")
+                st.rerun()
+
+        with st.container(border=True):
+            st.markdown("#### 💬 Study Chat")
+            st.write(
+                "Ask questions and understand difficult topics "
+                "in your preferred language."
+            )
+            if st.button("Open Study Chat", use_container_width=True):
+                set_page("Study Chat")
+                st.rerun()
+
+    with b:
+        with st.container(border=True):
+            st.markdown("#### 📄 PDF Notes")
+            st.write(
+                "Upload class notes and create summaries, revision "
+                "material and exam-focused answers."
+            )
+            if st.button("Open PDF Notes", use_container_width=True):
+                set_page("PDF Notes")
+                st.rerun()
+
+        with st.container(border=True):
+            st.markdown("#### 📊 Performance")
+            st.write(
+                "Review your previous quiz attempts and track "
+                "your scores."
+            )
+            if st.button("View Performance", use_container_width=True):
+                set_page("Performance")
+                st.rerun()
+
+    st.write("")
+    st.caption(
+        "Last activity: " + st.session_state["last_activity"]
     )
 
-    c1, c2, c3 = st.columns(3, gap="medium")
-    with c1:
-        feature_card("✦", "AI Quiz", "Build topic-based practice tests and review every answer.")
-        if st.button("Create a quiz", key="dash_quiz", use_container_width=True):
-            st.session_state.page = "AI Quiz"
-            st.rerun()
 
-    with c2:
-        feature_card("▤", "PDF Notes", "Upload study material and turn it into useful revision notes.")
-        if st.button("Open PDF Notes", key="dash_pdf", use_container_width=True):
-            st.session_state.page = "PDF Notes"
-            st.rerun()
-
-    with c3:
-        feature_card("✎", "Study Chat", "Ask questions and learn difficult concepts step by step.")
-        if st.button("Start studying", key="dash_chat", use_container_width=True):
-            st.session_state.page = "Study Chat"
-            st.rerun()
-
-    c4, c5, c6 = st.columns(3, gap="medium")
-    with c4:
-        feature_card("◷", "Performance", "Review previous scores and follow your learning progress.")
-        if st.button("View performance", key="dash_perf", use_container_width=True):
-            st.session_state.page = "Performance"
-            st.rerun()
-
-    with c5:
-        feature_card("◎", "Personal learning", "Choose your preferred language and difficulty.")
-        if st.button("Study settings", key="dash_settings", use_container_width=True):
-            st.session_state.page = "Settings"
-            st.rerun()
-
-    with c6:
-        feature_card("↗", "Learn from PDFs", "Generate summaries, key points and practice questions.")
-        if st.button("Explore notes", key="dash_notes", use_container_width=True):
-            st.session_state.page = "PDF Notes"
-            st.rerun()
-
-    st.markdown("### Recent activity")
-    if st.session_state.activities:
-        for item in st.session_state.activities[:5]:
-            st.markdown(
-                f"**{html.escape(item['activity'])}**  \n"
-                f"<span class='small-muted'>{html.escape(item['time'])}</span>",
-                unsafe_allow_html=True
-            )
-    else:
-        st.info("Your recent study activities will appear here.")
+# ---------- AI QUIZ ----------
 
 elif page == "AI Quiz":
-    hero(
-        "Practice with purpose.",
-        "Generate questions for your topic, test your understanding and "
-        "learn from every answer.",
-        "PERSONALISED PRACTICE"
+    st.markdown("# AI Quiz")
+    st.write(
+        "Generate questions from a topic or your PDF notes. "
+        "You can request between 5 and 100 questions."
     )
 
     with st.form("quiz_setup"):
-        col1, col2 = st.columns(2)
-        with col1:
-            subject = st.text_input(
-                "Subject",
-                value=st.session_state.quiz_subject,
-                placeholder="e.g. Applied Chemistry"
-            )
-            topic = st.text_input(
-                "Topic",
-                value=st.session_state.quiz_topic,
-                placeholder="e.g. Nernst equation"
-            )
-            difficulty = st.selectbox(
-                "Difficulty",
-                ["Easy", "Medium", "Hard", "Mixed"],
-                index=["Easy", "Medium", "Hard", "Mixed"].index(
-                    st.session_state.quiz_difficulty
-                )
-            )
-        with col2:
-            count = st.select_slider(
-                "Number of questions",
-                options=[5, 10, 15, 20, 30, 40, 50, 75, 100],
-                value=st.session_state.quiz_count
-            )
-            language = st.selectbox(
-                "Question language",
-                ["Simple English", "Hinglish", "Detailed English"],
-                index=["Simple English", "Hinglish", "Detailed English"].index(
-                    st.session_state.quiz_language
-                )
-            )
+        topic = st.text_area(
+            "Enter your topic or paste study material",
+            placeholder="Example: BJT working, recursion in C, or matrices",
+            height=120
+        )
+
+        uploaded_quiz_pdf = st.file_uploader(
+            "Or upload a PDF for quiz generation",
+            type=["pdf"],
+            key="quiz_pdf"
+        )
+
+        question_count = st.number_input(
+            "Number of questions",
+            min_value=5,
+            max_value=100,
+            value=10,
+            step=5
+        )
+
+        quiz_language = st.selectbox(
+            "Question language",
+            ["Simple English", "Hinglish", "Detailed English"]
+        )
 
         generate = st.form_submit_button(
-            "Generate practice quiz",
-            type="primary",
+            "Generate Quiz",
             use_container_width=True
         )
 
     if generate:
-        if not topic.strip():
-            st.error("Please enter a topic first.")
-        elif not get_api_key():
-            st.error("Add your Groq API key in Settings before generating a quiz.")
-        else:
-            st.session_state.quiz_subject = subject.strip() or "General"
-            st.session_state.quiz_topic = topic.strip()
-            st.session_state.quiz_difficulty = difficulty
-            st.session_state.quiz_count = count
-            st.session_state.quiz_language = language
+        source = topic.strip()
 
-            collected = []
-            failed = False
-            progress = st.progress(0)
-            status = st.empty()
-
+        if uploaded_quiz_pdf is not None:
             try:
-                batches = (count + 9) // 10
-                for batch_index in range(batches):
-                    amount = min(10, count - len(collected))
+                reader = PdfReader(uploaded_quiz_pdf)
+                pdf_text = "\n".join(
+                    page.extract_text() or "" for page in reader.pages
+                )
+                if pdf_text.strip():
+                    source = (
+                        "Create questions from this PDF content:\n"
+                        + pdf_text[:50000]
+                    )
+                elif not source:
+                    st.error(
+                        "PDF se readable text nahi mila. "
+                        "Scanned PDF ho sakti hai."
+                    )
+            except Exception as error:
+                st.error(f"PDF read nahi ho paayi: {error}")
+
+        if not source:
+            st.warning("Pehle topic likho ya readable PDF upload karo.")
+        else:
+            try:
+                st.session_state["quiz_data"] = []
+                st.session_state["quiz_submitted"] = False
+                st.session_state["quiz_result"] = None
+                st.session_state["quiz_topic"] = topic.strip() or "Uploaded PDF"
+                st.session_state["quiz_language"] = quiz_language
+                st.session_state["quiz_count"] = int(question_count)
+
+                progress = st.progress(0)
+                status = st.empty()
+                all_questions = []
+                target = int(question_count)
+
+                while len(all_questions) < target:
+                    batch_size = min(10, target - len(all_questions))
                     status.write(
-                        f"Creating questions: batch {batch_index + 1} of {batches}..."
+                        f"Generating questions: {len(all_questions)} "
+                        f"of {target}..."
                     )
+
+                    previous = [
+                        item["question"] for item in all_questions
+                    ]
+
                     batch = generate_quiz_batch(
-                        topic.strip(),
-                        subject.strip() or "General",
-                        amount,
-                        difficulty,
-                        language
+                        source,
+                        batch_size,
+                        quiz_language,
+                        previous
                     )
-                    collected.extend(batch)
-                    progress.progress(min(1.0, len(collected) / count))
 
-                if len(collected) < count:
-                    status.warning(
-                        f"The AI returned {len(collected)} valid questions "
-                        f"instead of {count}. You can try again."
-                    )
-                    failed = True
+                    all_questions.extend(batch)
+                    progress.progress(min(len(all_questions) / target, 1.0))
 
-                if collected:
-                    st.session_state.quiz = collected[:count]
-                    st.session_state.quiz_answers = {}
-                    st.session_state.quiz_result = None
-                    st.session_state.last_quiz = {
-                        "topic": topic.strip(),
-                        "subject": subject.strip() or "General",
-                        "difficulty": difficulty,
-                        "date": datetime.now().strftime("%d %b %Y, %I:%M %p")
-                    }
-                    log_activity(f"Generated quiz: {topic.strip()}")
+                st.session_state["quiz_data"] = all_questions[:target]
+                status.success("Quiz ready. All questions are below.")
+                record_activity()
+                st.rerun()
 
-                status.empty()
-                progress.empty()
+            except Exception as error:
+                st.error(f"Quiz generate nahi hua: {error}")
 
-                if failed:
-                    st.warning("A partial quiz is available below.")
-                elif collected:
-                    st.success(f"Created {len(collected)} questions.")
-            except Exception as e:
-                progress.empty()
-                status.empty()
-                st.error(f"Quiz generation failed: {e}")
+    questions = st.session_state["quiz_data"]
 
-    if st.session_state.quiz:
+    if questions:
         st.divider()
-        st.subheader(
-            f"Practice quiz: {st.session_state.last_quiz['topic']}"
-            if st.session_state.last_quiz else "Practice quiz"
-        )
+        st.markdown("### Your quiz")
         st.caption(
-            f"{len(st.session_state.quiz)} questions · "
-            "Choose one answer for each question."
+            f"Topic: {st.session_state['quiz_topic']} · "
+            f"{len(questions)} questions"
         )
 
-        if st.session_state.quiz_result is None:
-            with st.form("quiz_answers_form"):
-                selected_answers = {}
-                for i, question in enumerate(st.session_state.quiz):
-                    st.markdown(f"**Q{i + 1}. {question['question']}**")
-                    selected_answers[i] = st.radio(
-                        "Choose your answer",
-                        options=list(range(4)),
-                        format_func=lambda x, opts=question["options"]: opts[x],
-                        key=f"quiz_answer_{i}",
-                        index=None
-                    )
-                    st.markdown("---")
+        if not st.session_state["quiz_submitted"]:
+            with st.form("quiz_attempt"):
+                selected_answers = []
 
-                submitted = st.form_submit_button(
-                    "Submit quiz",
-                    type="primary",
+                for i, item in enumerate(questions):
+                    st.markdown(
+                        f"**Q{i + 1}. {item['question']}**"
+                    )
+
+                    answer = st.radio(
+                        f"Choose an answer for question {i + 1}",
+                        item["options"],
+                        index=None,
+                        key=f"quiz_answer_{i}",
+                        label_visibility="collapsed"
+                    )
+                    selected_answers.append(answer)
+                    st.write("")
+
+                submit_quiz = st.form_submit_button(
+                    "Submit Quiz",
                     use_container_width=True
                 )
 
-            if submitted:
+            if submit_quiz:
                 score = 0
-                answers = {}
-                for i, question in enumerate(st.session_state.quiz):
-                    chosen = selected_answers.get(i)
-                    answers[i] = chosen
-                    if chosen == question["answer"]:
+                reviewed = []
+
+                for i, item in enumerate(questions):
+                    selected = selected_answers[i]
+                    correct = item["options"][item["answer"]]
+
+                    is_correct = selected == correct
+                    if is_correct:
                         score += 1
 
-                total = len(st.session_state.quiz)
-                percentage = round(score / total * 100) if total else 0
+                    reviewed.append({
+                        "question": item["question"],
+                        "options": item["options"],
+                        "selected": selected,
+                        "correct": correct,
+                        "is_correct": is_correct,
+                        "explanation": item["explanation"]
+                    })
+
+                total = len(questions)
+                percentage = round(score / total * 100, 1)
 
                 result = {
+                    "topic": st.session_state["quiz_topic"],
                     "score": score,
                     "total": total,
                     "percentage": percentage,
-                    "answers": answers,
-                    "topic": st.session_state.last_quiz["topic"]
-                    if st.session_state.last_quiz else "Practice quiz",
-                    "date": datetime.now().strftime("%d %b %Y, %I:%M %p")
+                    "date": datetime.now().strftime("%d %b %Y, %I:%M %p"),
+                    "review": reviewed
                 }
-                st.session_state.quiz_answers = answers
-                st.session_state.quiz_result = result
-                st.session_state.quiz_history.insert(0, result)
-                st.session_state.quiz_history = st.session_state.quiz_history[:100]
-                log_activity(f"Completed quiz: {result['topic']}")
+
+                st.session_state["quiz_result"] = result
+                st.session_state["quiz_submitted"] = True
+                st.session_state["quiz_history"].append({
+                    "topic": result["topic"],
+                    "score": score,
+                    "total": total,
+                    "percentage": percentage,
+                    "date": result["date"]
+                })
+                st.session_state["total_questions"] += total
+                record_activity()
                 st.rerun()
 
-        else:
-            result = st.session_state.quiz_result
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Your score", f"{result['score']}/{result['total']}")
-            m2.metric("Percentage", f"{result['percentage']}%")
-            m3.metric(
-                "Incorrect or unanswered",
-                result["total"] - result["score"]
-            )
+        if st.session_state["quiz_submitted"]:
+            result = st.session_state["quiz_result"]
 
-            st.progress(result["percentage"] / 100)
+            if result:
+                st.markdown("### Quiz result")
 
-            if result["percentage"] >= 80:
-                st.success("Excellent work! Review the explanations to strengthen your knowledge.")
-            elif result["percentage"] >= 50:
-                st.info("Good effort. Review the questions you missed and try again.")
-            else:
-                st.warning("Keep practising. Read the explanations and try another quiz.")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Score", f"{result['score']}/{result['total']}")
+                c2.metric("Percentage", f"{result['percentage']}%")
+                c3.metric(
+                    "Incorrect / unanswered",
+                    result["total"] - result["score"]
+                )
 
-            st.subheader("Answer review")
-            for i, question in enumerate(st.session_state.quiz):
-                chosen = result["answers"].get(i)
-                correct = question["answer"]
-                with st.expander(f"Question {i + 1}: {question['question']}"):
-                    if chosen == correct:
-                        st.success("Your answer is correct.")
-                    else:
-                        st.error("Your answer is incorrect or unanswered.")
-
-                    st.write(
-                        "**Your answer:** " +
-                        (question["options"][chosen] if chosen is not None else "Not answered")
+                if result["percentage"] >= 80:
+                    st.success("Great work! You have a strong score.")
+                elif result["percentage"] >= 50:
+                    st.info("Good effort. Review the explanations below.")
+                else:
+                    st.warning(
+                        "Keep practising. Review each explanation "
+                        "and try another quiz."
                     )
-                    st.write("**Correct answer:** " + question["options"][correct])
-                    st.write("**Explanation:** " + question["explanation"])
 
-            result_text = (
-                f"Study Buddy AI Quiz Results\n"
-                f"Topic: {result['topic']}\n"
-                f"Score: {result['score']}/{result['total']}\n"
-                f"Percentage: {result['percentage']}%\n\n"
-            )
-            for i, question in enumerate(st.session_state.quiz):
-                chosen = result["answers"].get(i)
-                result_text += f"Q{i + 1}. {question['question']}\n"
-                result_text += f"Correct answer: {question['options'][question['answer']]}\n"
-                result_text += f"Explanation: {question['explanation']}\n\n"
+                st.markdown("### Answer review")
 
-            st.download_button(
-                "Download quiz results",
-                data=result_text,
-                file_name="study_buddy_quiz_results.txt",
-                mime="text/plain",
-                use_container_width=True
-            )
+                for i, item in enumerate(result["review"]):
+                    with st.container(border=True):
+                        st.markdown(
+                            f"**Q{i + 1}. {item['question']}**"
+                        )
 
-            if st.button("Create another quiz", type="primary", use_container_width=True):
-                st.session_state.quiz = []
-                st.session_state.quiz_answers = {}
-                st.session_state.quiz_result = None
-                st.rerun()
+                        st.write(
+                            "Your answer: "
+                            + (item["selected"] or "Not answered")
+                        )
+                        st.write("Correct answer: " + item["correct"])
+
+                        if item["is_correct"]:
+                            st.success("Correct")
+                        else:
+                            st.error("Incorrect")
+
+                        st.write(
+                            "Explanation: "
+                            + (item["explanation"] or "No explanation provided.")
+                        )
+
+                if st.button("Create another quiz", use_container_width=True):
+                    st.session_state["quiz_data"] = []
+                    st.session_state["quiz_submitted"] = False
+                    st.session_state["quiz_result"] = None
+                    st.rerun()
+
+
+# ---------- PDF NOTES ----------
 
 elif page == "PDF Notes":
-    hero(
-        "Your notes, made clearer.",
-        "Upload a PDF and transform study material into summaries, "
-        "important concepts, revision notes and practice questions.",
-        "SMART NOTE WORKSPACE"
+    st.markdown("# PDF Notes")
+    st.write(
+        "Upload your notes and turn them into study material "
+        "for revision and exam preparation."
     )
 
-    uploaded_file = st.file_uploader("Upload your PDF", type=["pdf"])
+    uploaded_pdf = st.file_uploader(
+        "Upload a PDF file",
+        type=["pdf"],
+        key="notes_pdf"
+    )
 
-    if uploaded_file is not None:
-        if st.session_state.pdf_name != uploaded_file.name:
+    note_type = st.selectbox(
+        "What would you like to create?",
+        [
+            "Exam Notes",
+            "Short Summary",
+            "Important Questions and Answers",
+            "Revision Points",
+            "Practice MCQs",
+            "Explain in Simple Language"
+        ]
+    )
+
+    notes_language = st.selectbox(
+        "Output language",
+        ["Simple English", "Hinglish", "Detailed English"]
+    )
+
+    extra_instructions = st.text_area(
+        "Extra instructions (optional)",
+        placeholder="Example: Make answers suitable for 7 marks."
+    )
+
+    if st.button("Create Study Material", use_container_width=True):
+        if uploaded_pdf is None:
+            st.warning("Pehle PDF upload karo.")
+        else:
             try:
-                reader = PdfReader(uploaded_file)
-                extracted = []
-                for page_number, pdf_page in enumerate(reader.pages):
-                    extracted.append(pdf_page.extract_text() or "")
+                reader = PdfReader(uploaded_pdf)
+                pdf_text = "\n".join(
+                    page.extract_text() or "" for page in reader.pages
+                )
 
-                st.session_state.pdf_text = "\n".join(extracted).strip()
-                st.session_state.pdf_name = uploaded_file.name
-                st.session_state.pdf_output = ""
-
-                if not st.session_state.pdf_text:
-                    st.warning(
-                        "No selectable text was found. This may be a scanned PDF "
-                        "that needs OCR before it can be processed."
+                if not pdf_text.strip():
+                    st.error(
+                        "PDF se text nahi mila. Ho sakta hai PDF scanned "
+                        "images wali ho."
                     )
                 else:
-                    st.success(
-                        f"Loaded {len(reader.pages)} pages from {uploaded_file.name}."
-                    )
-            except Exception as e:
-                st.error(f"Could not read this PDF: {e}")
+                    prompt = f"""
+Create study material using ONLY the supplied PDF content.
 
-    if st.session_state.pdf_text:
-        st.markdown("### Document details")
-        st.markdown(
-            f'<div class="panel"><strong>{html.escape(st.session_state.pdf_name)}</strong>'
-            f'<p class="small-muted">{len(st.session_state.pdf_text):,} characters extracted</p></div>',
-            unsafe_allow_html=True
-        )
+Type: {note_type}
+Language: {notes_language}
+Extra instructions: {extra_instructions or "None"}
 
-        action = st.selectbox(
-            "What would you like to create?",
-            [
-                "Complete summary",
-                "Exam-ready notes",
-                "Important questions with answers",
-                "Quick revision points",
-                "Explain in simple language",
-                "Practice MCQs"
-            ]
-        )
+Requirements:
+- Cover the important material from the PDF.
+- Use clear headings and numbered points where useful.
+- Keep the language easy to understand.
+- Do not invent facts that are not supported by the PDF.
+- For exam answers, include a definition, explanation, key points,
+  examples where relevant, and a conclusion when appropriate.
+- Make the result useful for a college student.
 
-        language = st.selectbox(
-            "Output language",
-            ["Simple English", "Hinglish", "Detailed English"],
-            key="pdf_language"
-        )
-
-        if st.button("Generate study material", type="primary", use_container_width=True):
-            if not get_api_key():
-                st.error("Add your Groq API key in Settings first.")
-            else:
-                try:
-                    with st.spinner("Reading your notes and preparing study material..."):
-                        source_text = st.session_state.pdf_text[:24000]
-                        prompt = f"""
-Use the following PDF text as the main source.
-
-Task: {action}
-Output language: {language}
-
-Instructions:
-- Cover the important information present in the supplied text.
-- Do not invent facts that are not supported by the source.
-- Use clear headings and readable paragraphs.
-- For exam notes, use definitions, key points and examples where relevant.
-- For questions, provide answers too.
-- For practice MCQs, provide four options and clearly identify the correct answer.
-- If the source is incomplete, state that clearly.
-
-PDF text:
-{source_text}
+PDF content:
+{pdf_text[:50000]}
 """
-                        output = ask_ai(
-                            prompt,
-                            system="You are a careful study-notes assistant. Be accurate and well organised.",
-                            temperature=0.3,
-                            max_tokens=5000
-                        )
-                        st.session_state.pdf_output = output
-                        log_activity(f"Generated PDF material: {action}")
-                except Exception as e:
-                    st.error(f"Could not generate notes: {e}")
+                    with st.spinner("Preparing your study material..."):
+                        generated_notes = ask_ai(prompt, temperature=0.3)
 
-    if st.session_state.pdf_output:
+                    st.session_state["last_notes"] = generated_notes
+                    st.session_state["last_pdf_name"] = uploaded_pdf.name
+                    st.session_state["notes_created"] += 1
+                    st.session_state["notes_type"] = note_type
+                    st.session_state["notes_language"] = notes_language
+                    record_activity()
+                    st.rerun()
+
+            except Exception as error:
+                st.error(f"Notes create nahi hue: {error}")
+
+    if st.session_state["last_notes"]:
         st.divider()
-        st.subheader("Your study material")
-        st.markdown(st.session_state.pdf_output)
-        download_buttons(
-            st.session_state.pdf_output,
-            "study_buddy_notes",
-            "Study Buddy AI Notes"
+        st.markdown("### Your study material")
+        st.markdown(st.session_state["last_notes"])
+
+        st.download_button(
+            "Download notes as TXT",
+            data=st.session_state["last_notes"],
+            file_name="study_buddy_notes.txt",
+            mime="text/plain",
+            use_container_width=True
         )
+
+        try:
+            pdf_bytes = create_notes_pdf(
+                "Study Buddy AI - " + st.session_state["notes_type"],
+                st.session_state["last_notes"]
+            )
+
+            st.download_button(
+                "Download notes as PDF",
+                data=pdf_bytes,
+                file_name="study_buddy_notes.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        except Exception as error:
+            st.warning(f"PDF export nahi ho paaya: {error}")
+
+
+# ---------- STUDY CHAT ----------
 
 elif page == "Study Chat":
-    hero(
-        "Let's understand it together.",
-        "Ask about a concept, solve a doubt or request a step-by-step "
-        "explanation in your preferred learning style.",
-        "YOUR AI STUDY ASSISTANT"
+    st.markdown("# Study Chat")
+    st.write(
+        "Ask academic questions, get concepts explained and "
+        "prepare for college exams."
     )
 
-    language = st.selectbox(
-        "Explanation style",
+    st.session_state["chat_language"] = st.selectbox(
+        "Answer style",
         ["Simple English", "Hinglish", "Detailed English"],
-        key="chat_language"
+        index=[
+            "Simple English",
+            "Hinglish",
+            "Detailed English"
+        ].index(st.session_state["chat_language"])
     )
 
-    if st.button("Clear conversation"):
-        st.session_state.chat_history = []
-        st.rerun()
-
-    for message in st.session_state.chat_history:
+    for message in st.session_state["chat_messages"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    user_message = st.chat_input("Ask a question about your studies...")
+    user_prompt = st.chat_input(
+        "Ask a study question..."
+    )
 
-    if user_message:
-        st.session_state.chat_history.append({
+    if user_prompt:
+        st.session_state["chat_messages"].append({
             "role": "user",
-            "content": user_message
+            "content": user_prompt
         })
 
         with st.chat_message("user"):
-            st.markdown(user_message)
+            st.markdown(user_prompt)
 
-        with st.chat_message("assistant"):
-            try:
-                client = get_client()
-                if client is None:
-                    raise ValueError("Add your Groq API key in Settings first.")
+        language = st.session_state["chat_language"]
 
-                recent = st.session_state.chat_history[-12:]
-                system_message = (
-                    "You are Study Buddy AI, a helpful educational tutor. "
-                    f"Respond in {language}. "
-                    "Explain step by step when useful. "
-                    "Use clear headings and examples. "
-                    "For programming questions, provide complete correct code "
-                    "when requested. Do not make up facts."
-                )
+        prompt = f"""
+Answer this student's question in {language}.
 
-                messages = [{"role": "system", "content": system_message}]
-                messages.extend(recent)
+Question:
+{user_prompt}
 
-                with st.spinner("Preparing your explanation..."):
-                    response = client.chat.completions.create(
-                        model=DEFAULT_MODEL,
-                        messages=messages,
-                        temperature=0.4,
-                        max_tokens=3000
-                    )
+Make the answer accurate and easy to understand.
+For programming questions, give complete beginner-friendly code
+when needed, with proper indentation and explanations.
+For exam questions, use clear headings and exam-friendly points.
+"""
 
-                answer = response.choices[0].message.content.strip()
+        try:
+            with st.chat_message("assistant"):
+                with st.spinner("Preparing your answer..."):
+                    answer = ask_ai(prompt, temperature=0.4)
                 st.markdown(answer)
-                st.session_state.chat_history.append({
-                    "role": "assistant",
-                    "content": answer
-                })
-                log_activity("Asked a question in Study Chat")
 
-            except Exception as e:
-                st.error(f"Could not get a response: {e}")
-                st.session_state.chat_history.pop()
+            st.session_state["chat_messages"].append({
+                "role": "assistant",
+                "content": answer
+            })
+            record_activity()
+
+        except Exception as error:
+            st.error(f"Answer generate nahi hua: {error}")
+
+    if st.session_state["chat_messages"]:
+        if st.button("Clear chat history"):
+            st.session_state["chat_messages"] = []
+            st.rerun()
+
+
+# ---------- PERFORMANCE ----------
 
 elif page == "Performance":
-    hero(
-        "Your progress, at a glance.",
-        "Review your completed quizzes, track your scores and identify "
-        "topics that deserve more practice.",
-        "LEARNING INSIGHTS"
-    )
+    st.markdown("# Performance")
+    st.write("Your quiz history and learning progress.")
 
-    history = st.session_state.quiz_history
+    history = st.session_state["quiz_history"]
+
     if not history:
-        st.info("Complete an AI quiz to start building your performance history.")
+        st.info(
+            "Abhi koi completed quiz nahi hai. AI Quiz page par "
+            "jaakar apna pehla quiz attempt karo."
+        )
     else:
         total_quizzes = len(history)
-        percentages = [x["percentage"] for x in history]
-        average = round(sum(percentages) / len(percentages))
-        best = max(percentages)
+        total_correct = sum(item["score"] for item in history)
+        total_attempted = sum(item["total"] for item in history)
+
+        average = (
+            round(total_correct / total_attempted * 100, 1)
+            if total_attempted else 0
+        )
 
         c1, c2, c3 = st.columns(3)
-        c1.metric("Completed quizzes", total_quizzes)
-        c2.metric("Average score", f"{average}%")
-        c3.metric("Best score", f"{best}%")
+        c1.metric("Quizzes completed", total_quizzes)
+        c2.metric("Questions attempted", total_attempted)
+        c3.metric("Overall accuracy", f"{average}%")
 
-        st.subheader("Score history")
-        chart_data = [
-            {
-                "Quiz": f"{i + 1}. {item['topic'][:24]}",
-                "Score (%)": item["percentage"]
-            }
-            for i, item in enumerate(reversed(history[-10:]))
-        ]
-        st.bar_chart(chart_data, x="Quiz", y="Score (%)")
+        st.markdown("### Previous quizzes")
 
-        st.subheader("Recent quizzes")
-        for item in history[:20]:
-            with st.expander(
-                f"{item['topic']} — {item['percentage']}% · {item['date']}"
-            ):
-                st.write(f"Score: {item['score']}/{item['total']}")
-                st.progress(item["percentage"] / 100)
+        for i, item in enumerate(reversed(history), start=1):
+            with st.container(border=True):
+                st.markdown(f"**{item['topic']}**")
+                st.write("Date: " + item["date"])
+                st.write(
+                    f"Score: {item['score']}/{item['total']} "
+                    f"({item['percentage']}%)"
+                )
 
-        export_text = "Study Buddy AI - Performance History\n\n"
+        history_text = "Study Buddy AI - Quiz History\n\n"
+
         for item in history:
-            export_text += (
+            history_text += (
                 f"Topic: {item['topic']}\n"
                 f"Score: {item['score']}/{item['total']}\n"
                 f"Percentage: {item['percentage']}%\n"
@@ -1063,80 +916,73 @@ elif page == "Performance":
             )
 
         st.download_button(
-            "Export performance history",
-            data=export_text,
+            "Download quiz history",
+            data=history_text,
             file_name="study_buddy_performance.txt",
-            mime="text/plain",
-            use_container_width=True
+            mime="text/plain"
         )
+
+
+# ---------- SETTINGS ----------
 
 elif page == "Settings":
-    hero(
-        "Make it work for you.",
-        "Configure your AI connection and choose how you want to use "
-        "your personal learning workspace.",
-        "WORKSPACE SETTINGS"
+    st.markdown("# Settings")
+    st.write("Manage your API key and current study session.")
+
+    st.markdown("### Groq API")
+
+    st.write(
+        "API key ko neeche enter kar sakti ho. Ye session mein rahegi. "
+        "Permanent setup ke liye Streamlit Secrets use karo."
     )
 
-    st.subheader("AI connection")
-    st.markdown(
-        "Study Buddy AI uses Groq to generate questions, prepare notes "
-        "and answer study questions."
+    api_key_input = st.text_input(
+        "Groq API key",
+        type="password",
+        placeholder="Enter your Groq API key",
+        value=st.session_state["session_api_key"]
     )
 
-    st.markdown("**Recommended: Streamlit Secrets**")
-    st.markdown(
-        "Open your app in Streamlit Cloud → Settings → Secrets, "
-        "then add the following line:"
-    )
-    st.code('GROQ_API_KEY = "your_groq_api_key_here"', language="toml")
-
-    st.markdown(
-        "Keep the real API key private. Do not paste it into public GitHub files."
-    )
-
-    with st.expander("Use a temporary key for this session"):
-        manual_key = st.text_input(
-            "Groq API key",
-            type="password",
-            value=st.session_state.get("manual_api_key", ""),
-            help="Stored only in this running Streamlit session."
-        )
-        if st.button("Save key for this session", type="primary"):
-            st.session_state.manual_api_key = manual_key.strip()
-            st.success("Key saved for this session.")
-            st.rerun()
-
-    if st.button("Test AI connection", use_container_width=True):
-        if not get_api_key():
-            st.error("No API key found. Configure it above.")
-        else:
-            try:
-                with st.spinner("Testing connection..."):
-                    test = ask_ai(
-                        "Reply with exactly: Connection successful.",
-                        max_tokens=50
-                    )
-                st.success(f"AI connection is working: {test}")
-            except Exception as e:
-                st.error(f"Connection test failed: {e}")
-
-    st.divider()
-    st.subheader("Workspace information")
-    st.write("Application: Study Buddy AI")
-    st.write("Interface: Sage Green + Off-White")
-    st.write("AI provider: Groq")
-    st.write("Quiz generation: Batch-based, up to 100 requested questions")
+    if st.button("Save API key for this session"):
+        st.session_state["session_api_key"] = api_key_input.strip()
+        st.success("API key current session ke liye set kar di gayi hai.")
 
     st.caption(
-        "Session history is stored in memory and may reset when the app restarts. "
-        "Generated answers can contain mistakes, so verify important academic information."
+        "API key ko public GitHub repository, screenshots ya shared "
+        "messages mein kabhi paste mat karna."
     )
 
-st.markdown("---")
-st.markdown(
-    '<p class="small-muted" style="text-align:center;">'
-    'Study Buddy AI · Learn clearly. Practise consistently. Grow confidently.'
-    '</p>',
-    unsafe_allow_html=True
+    st.divider()
+    st.markdown("### Session information")
+    st.write(
+        f"Quizzes completed: {len(st.session_state['quiz_history'])}"
+    )
+    st.write(
+        f"Notes generated: {st.session_state['notes_created']}"
+    )
+    st.write(
+        f"Chat messages: {len(st.session_state['chat_messages'])}"
+    )
+
+    st.divider()
+    st.markdown("### Reset session")
+
+    st.warning(
+        "Reset karne se current session ki quiz history, chat aur "
+        "generated notes clear ho jayenge."
+    )
+
+    if st.button("Reset study session"):
+        for key, value in DEFAULTS.items():
+            st.session_state[key] = value
+
+        st.rerun()
+
+
+# ---------- FOOTER ----------
+
+st.divider()
+st.caption(
+    "Study Buddy AI · Personal study workspace · "
+    "Quiz scores and session history are stored in the current session."
 )
