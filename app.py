@@ -445,15 +445,15 @@ def get_client():
 
     if not api_key:
         st.error(
-            "GROQ_API_KEY missing hai. Streamlit Cloud ke "
-            "Settings → Secrets mein API key add karo."
-        )
+    "GROQ_API_KEY is missing. Add your API key in "
+    "Streamlit Cloud under Settings → Secrets."
+)
         return None
 
     try:
         return Groq(api_key=api_key)
     except Exception as e:
-        st.error(f"AI connection setup nahi ho paya: {e}")
+        st.error(f"Failed to set up the AI connection: {e}")
         return None
 
 
@@ -472,7 +472,7 @@ def ask_ai(prompt, max_tokens=5000, temperature=0.4):
         )
         return response.choices[0].message.content
     except Exception as e:
-        st.error(f"AI request fail ho gayi: {e}")
+        st.error(f"The AI request failed: {e}")
         return None
 
 
@@ -485,7 +485,7 @@ def extract_pdf_text(file):
         ]
         return "\n".join(pages).strip()
     except Exception as e:
-        st.error(f"PDF read nahi ho payi: {e}")
+        st.error(f"Failed to read the PDF: {e}")
         return ""
 
 
@@ -837,7 +837,7 @@ elif st.session_state.page == "AI Quiz":
         use_container_width=True
     ):
         if not topic.strip():
-            st.warning("Pehle study topic enter karo.")
+            st.warning("Please enter a study topic first.")
         else:
             batch_size = 10
             batches = (
@@ -938,10 +938,10 @@ Requirements:
                         f"Quiz generated! Requested {question_count} questions."
                     )
             else:
-                st.error(
-                    "Quiz generate nahi ho paya. API key, internet "
-                    "connection ya provider limit check karo."
-                )
+            st.error(
+    "The quiz could not be generated. Check your API key, internet "
+    "connection, or provider limit, then try again."
+)
 
     if st.session_state.last_quiz:
         st.markdown(
@@ -1000,9 +1000,9 @@ elif st.session_state.page == "PDF Notes":
                     )
         else:
             st.warning(
-                "PDF se readable text nahi mila. Agar PDF scanned "
-                "image hai, toh OCR ki zaroorat ho sakti hai."
-            )
+    "No readable text was found in the PDF. If the PDF is a "
+    "scanned image, OCR may be required."
+)
 
     note_style = st.selectbox(
         "Notes style",
@@ -1039,10 +1039,10 @@ elif st.session_state.page == "PDF Notes":
         use_container_width=True
     ):
         if not st.session_state.pdf_text:
-            st.warning("Pehle readable PDF upload karo.")
+           st.warning("Please upload a readable PDF first.")
         else:
             with st.spinner(
-                "PDF ko analyse karke notes banaye ja rahe hain..."
+                "Analysing the PDF and generating notes..."
             ):
                 source_text = st.session_state.pdf_text[:26000]
 
@@ -1096,11 +1096,12 @@ SOURCE TEXT:
 
                 if len(st.session_state.pdf_text) > 26000:
                     st.info(
-                        "Large PDF hai, isliye extracted text ka "
-                        "sirf first section AI ko bheja gaya."
-                    )
+    "The PDF is large, so only the first section of the extracted text "
+    "was sent to the AI."
+)
+                 
 
-                st.success("Notes ready!")
+               st.success("Notes ready!")
 
     if st.session_state.last_notes:
         st.markdown(
@@ -1135,7 +1136,7 @@ SOURCE TEXT:
                     use_container_width=True
                 )
             except Exception as e:
-                st.error(f"PDF export fail hua: {e}")
+         st.error(f"PDF export failed: {e}")
 
 
 elif st.session_state.page == "Study Chat":
@@ -1230,10 +1231,10 @@ elif st.session_state.page == "Study Chat":
             st.rerun()
         else:
             st.warning(
-                "AI response nahi aa paya. Tumhara question chat "
-                "history mein safe hai. API key, internet connection "
-                "ya provider limit check karke dobara try karo."
-            )
+    "The AI response could not be generated. Your question is safe "
+    "in the chat history. Check your API key, internet connection, "
+    "or provider limit, then try again."
+)
 
 elif st.session_state.page == "Performance":
     show_heading(
@@ -1285,10 +1286,9 @@ elif st.session_state.page == "Performance":
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.info(
-            "Abhi quiz history nahi hai. AI Quiz section se "
-            "apna pehla quiz banao."
-        )
+      st.info(
+    "There is no quiz history yet. Create your first quiz from the AI Quiz section."
+)
 
     st.markdown(
         '<div class="section-title">Notes history</div>',
@@ -1309,9 +1309,8 @@ elif st.session_state.page == "Performance":
             """, unsafe_allow_html=True)
     else:
         st.info(
-            "Abhi notes history nahi hai. PDF Notes section se "
-            "notes generate karo."
-        )
+    "There is no notes history yet. Generate notes from the PDF Notes section."
+)
 
     st.caption(
         "Performance data currently stays in the active app session "
@@ -1379,7 +1378,7 @@ elif st.session_state.page == "Settings":
                 "Quiz and notes history cleared"
             )
 
-            st.success("Quiz aur notes history clear ho gayi.")
+            st.success("Quiz and notes history has been cleared.")
             st.rerun()
 
     with c2:
@@ -1389,7 +1388,7 @@ elif st.session_state.page == "Settings":
         ):
             st.session_state.chat_messages = []
             st.session_state.last_activity = "Chat history cleared"
-            st.success("Chat history clear ho gayi.")
+    st.success("Chat history has been cleared.")
             st.rerun()
 
     st.markdown(
