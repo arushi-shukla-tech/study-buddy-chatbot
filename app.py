@@ -38,7 +38,6 @@ for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
@@ -300,6 +299,7 @@ h1, h2, h3, h4 {
     color: #087f5b;
 }
 
+/* General buttons */
 .stButton > button {
     border-radius: 12px;
     min-height: 43px;
@@ -310,7 +310,7 @@ h1, h2, h3, h4 {
 
 .stButton > button[kind="primary"] {
     background: linear-gradient(110deg, #087f5b, #12a879);
-    color: white;
+    color: white !important;
     border: 0;
     box-shadow: 0 6px 16px rgba(8,127,91,.17);
 }
@@ -318,6 +318,32 @@ h1, h2, h3, h4 {
 .stButton > button:hover {
     transform: translateY(-1px);
     border-color: #12a879;
+}
+
+/* DOWNLOAD BUTTONS: WHITE TEXT */
+.stDownloadButton > button,
+.stDownloadButton > button[kind="secondary"],
+.stDownloadButton > button[kind="primary"] {
+    background: linear-gradient(110deg, #087f5b, #12a879) !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    border: none !important;
+    border-radius: 12px !important;
+    font-weight: 700 !important;
+    min-height: 43px;
+    box-shadow: 0 6px 16px rgba(8,127,91,.17);
+}
+
+.stDownloadButton > button *,
+.stDownloadButton > button span,
+.stDownloadButton > button p {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+}
+
+.stDownloadButton > button:hover {
+    background: linear-gradient(110deg, #06694b, #0b9569) !important;
+    border: none !important;
 }
 
 .stTextInput input,
@@ -337,7 +363,7 @@ h1, h2, h3, h4 {
     padding: 10px;
 }
 
-/* HIGH CONTRAST CHAT MESSAGES */
+/* Chat messages */
 [data-testid="stChatMessage"] {
     background-color: #ffffff !important;
     color: #17233c !important;
@@ -445,9 +471,9 @@ def get_client():
 
     if not api_key:
         st.error(
-    "GROQ_API_KEY is missing. Add your API key in "
-    "Streamlit Cloud under Settings → Secrets."
-)
+            "GROQ_API_KEY is missing. Add your API key in "
+            "Streamlit Cloud under Settings → Secrets."
+        )
         return None
 
     try:
@@ -607,6 +633,8 @@ def feature_card(icon, title, description):
     </div>
     """, unsafe_allow_html=True)
 
+
+# SIDEBAR
 with st.sidebar:
     st.markdown("""
     <div class="brand">
@@ -659,6 +687,7 @@ with st.sidebar:
     st.caption("Powered by Groq AI")
 
 
+# DASHBOARD
 if st.session_state.page == "Dashboard":
     st.markdown("""
     <div class="hero">
@@ -681,25 +710,16 @@ if st.session_state.page == "Dashboard":
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        metric_card(
-            "🧠",
-            st.session_state.generated_quizzes,
-            "Quizzes generated"
-        )
+        metric_card("🧠", st.session_state.generated_quizzes,
+                    "Quizzes generated")
 
     with c2:
-        metric_card(
-            "📚",
-            st.session_state.notes_created,
-            "Notes created"
-        )
+        metric_card("📚", st.session_state.notes_created,
+                    "Notes created")
 
     with c3:
-        metric_card(
-            "💬",
-            len(st.session_state.chat_messages),
-            "Chat messages"
-        )
+        metric_card("💬", len(st.session_state.chat_messages),
+                    "Chat messages")
 
     st.markdown(
         '<div class="section-title">Your AI toolkit</div>',
@@ -714,49 +734,31 @@ if st.session_state.page == "Dashboard":
 
     with c1:
         feature_card(
-            "🧩",
-            "AI Quiz",
+            "🧩", "AI Quiz",
             "Create practice questions from any topic and test your understanding."
         )
-
-        if st.button(
-            "Create a quiz →",
-            key="dash_quiz",
-            type="primary",
-            use_container_width=True
-        ):
+        if st.button("Create a quiz →", key="dash_quiz",
+                     type="primary", use_container_width=True):
             go_to("AI Quiz")
             st.rerun()
 
     with c2:
         feature_card(
-            "📄",
-            "PDF Notes",
+            "📄", "PDF Notes",
             "Turn your study PDF into structured, readable notes."
         )
-
-        if st.button(
-            "Make notes →",
-            key="dash_notes",
-            type="primary",
-            use_container_width=True
-        ):
+        if st.button("Make notes →", key="dash_notes",
+                     type="primary", use_container_width=True):
             go_to("PDF Notes")
             st.rerun()
 
     with c3:
         feature_card(
-            "💬",
-            "Study Chat",
+            "💬", "Study Chat",
             "Ask questions and get explanations in simple language."
         )
-
-        if st.button(
-            "Ask a doubt →",
-            key="dash_chat",
-            type="primary",
-            use_container_width=True
-        ):
+        if st.button("Ask a doubt →", key="dash_chat",
+                     type="primary", use_container_width=True):
             go_to("Study Chat")
             st.rerun()
 
@@ -778,6 +780,7 @@ if st.session_state.page == "Dashboard":
     """, unsafe_allow_html=True)
 
 
+# AI QUIZ
 elif st.session_state.page == "AI Quiz":
     show_heading(
         "AI Quiz Studio",
@@ -805,7 +808,6 @@ elif st.session_state.page == "AI Quiz":
             ["Easy", "Medium", "Hard", "Mixed"],
             index=1
         )
-
         question_type = st.selectbox(
             "Question format",
             ["MCQ", "Short Answer", "Mixed"]
@@ -817,7 +819,6 @@ elif st.session_state.page == "AI Quiz":
             [5, 10, 20, 30, 40, 50, 75, 100],
             index=2
         )
-
         language = st.selectbox(
             "Answer language",
             ["English", "Simple Hindi", "Hinglish"],
@@ -831,18 +832,13 @@ elif st.session_state.page == "AI Quiz":
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.button(
-        "✨ Generate my quiz",
-        type="primary",
-        use_container_width=True
-    ):
+    if st.button("✨ Generate my quiz", type="primary",
+                 use_container_width=True):
         if not topic.strip():
             st.warning("Please enter a study topic first.")
         else:
             batch_size = 10
-            batches = (
-                question_count + batch_size - 1
-            ) // batch_size
+            batches = (question_count + batch_size - 1) // batch_size
 
             generated_parts = []
             progress = st.progress(0)
@@ -876,7 +872,7 @@ Additional instructions: {extra_instructions or "None"}
 Requirements:
 1. Generate exactly {current_count} distinct questions.
 2. Number questions from {start_num} to {end_num}.
-3. For MCQs, provide four options labelled A, B, C, D and mark the correct answer.
+3. For MCQs, provide four options A, B, C, D and mark the correct answer.
 4. For short answers, provide a clear model answer.
 5. For mixed format, use a sensible mix of MCQs and short answers.
 6. Explain answers briefly where useful.
@@ -893,15 +889,11 @@ Requirements:
                 )
 
                 if not result:
-                    st.session_state.quiz_partial = bool(
-                        generated_parts
-                    )
+                    st.session_state.quiz_partial = bool(generated_parts)
                     break
 
                 generated_parts.append(result)
-                progress.progress(
-                    len(generated_parts) / batches
-                )
+                progress.progress(len(generated_parts) / batches)
 
             status.empty()
             progress.empty()
@@ -917,15 +909,11 @@ Requirements:
                     "topic": topic,
                     "questions_requested": question_count,
                     "batches_generated": len(generated_parts),
-                    "date": datetime.now().strftime(
-                        "%d %b %Y, %I:%M %p"
-                    ),
+                    "date": datetime.now().strftime("%d %b %Y, %I:%M %p"),
                     "difficulty": difficulty
                 })
 
-                st.session_state.last_activity = (
-                    f"Generated quiz: {topic}"
-                )
+                st.session_state.last_activity = f"Generated quiz: {topic}"
 
                 if st.session_state.quiz_partial:
                     st.warning(
@@ -938,17 +926,16 @@ Requirements:
                         f"Quiz generated! Requested {question_count} questions."
                     )
             else:
-            st.error(
-    "The quiz could not be generated. Check your API key, internet "
-    "connection, or provider limit, then try again."
-)
+                st.error(
+                    "The quiz could not be generated. Check your API key, "
+                    "internet connection, or provider limit, then try again."
+                )
 
     if st.session_state.last_quiz:
         st.markdown(
             '<div class="section-title">Your generated quiz</div>',
             unsafe_allow_html=True
         )
-
         st.caption(f"Topic: {st.session_state.quiz_topic}")
         st.markdown(st.session_state.last_quiz)
 
@@ -960,6 +947,8 @@ Requirements:
             use_container_width=True
         )
 
+
+# PDF NOTES
 elif st.session_state.page == "PDF Notes":
     show_heading(
         "PDF Notes Studio",
@@ -1000,9 +989,9 @@ elif st.session_state.page == "PDF Notes":
                     )
         else:
             st.warning(
-    "No readable text was found in the PDF. If the PDF is a "
-    "scanned image, OCR may be required."
-)
+                "No readable text was found in the PDF. If the PDF is "
+                "a scanned image, OCR may be required."
+            )
 
     note_style = st.selectbox(
         "Notes style",
@@ -1033,17 +1022,12 @@ elif st.session_state.page == "PDF Notes":
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.button(
-        "📚 Generate study notes",
-        type="primary",
-        use_container_width=True
-    ):
+    if st.button("📚 Generate study notes", type="primary",
+                 use_container_width=True):
         if not st.session_state.pdf_text:
-           st.warning("Please upload a readable PDF first.")
+            st.warning("Please upload a readable PDF first.")
         else:
-            with st.spinner(
-                "Analysing the PDF and generating notes..."
-            ):
+            with st.spinner("Analysing the PDF and generating notes..."):
                 source_text = st.session_state.pdf_text[:26000]
 
                 prompt = f"""
@@ -1084,9 +1068,7 @@ SOURCE TEXT:
 
                 st.session_state.notes_history.insert(0, {
                     "style": note_style,
-                    "date": datetime.now().strftime(
-                        "%d %b %Y, %I:%M %p"
-                    ),
+                    "date": datetime.now().strftime("%d %b %Y, %I:%M %p"),
                     "words": len(notes.split())
                 })
 
@@ -1096,12 +1078,11 @@ SOURCE TEXT:
 
                 if len(st.session_state.pdf_text) > 26000:
                     st.info(
-    "The PDF is large, so only the first section of the extracted text "
-    "was sent to the AI."
-)
-                 
+                        "The PDF is large, so only the first section "
+                        "of the extracted text was sent to the AI."
+                    )
 
-               st.success("Notes ready!")
+                st.success("Notes ready!")
 
     if st.session_state.last_notes:
         st.markdown(
@@ -1124,9 +1105,7 @@ SOURCE TEXT:
 
         with c2:
             try:
-                pdf_data = make_pdf(
-                    st.session_state.last_notes
-                )
+                pdf_data = make_pdf(st.session_state.last_notes)
 
                 st.download_button(
                     "📄 Download PDF",
@@ -1136,9 +1115,10 @@ SOURCE TEXT:
                     use_container_width=True
                 )
             except Exception as e:
-         st.error(f"PDF export failed: {e}")
+                st.error(f"PDF export failed: {e}")
 
 
+# STUDY CHAT
 elif st.session_state.page == "Study Chat":
     show_heading(
         "Study Chat",
@@ -1160,7 +1140,6 @@ elif st.session_state.page == "Study Chat":
         st.session_state.last_activity = "Started a new chat"
         st.rerun()
 
-    # Show the existing conversation.
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -1179,7 +1158,6 @@ elif st.session_state.page == "Study Chat":
         with st.chat_message("user"):
             st.markdown(user_prompt)
 
-        # Keep recent conversation context.
         history = st.session_state.chat_messages[-11:]
 
         messages = [{
@@ -1214,9 +1192,7 @@ elif st.session_state.page == "Study Chat":
                         answer = response.choices[0].message.content
 
                     except Exception as e:
-                        st.error(
-                            f"Chat response nahi aa paya: {e}"
-                        )
+                        st.error(f"Chat response nahi aa paya: {e}")
 
                 if answer:
                     st.markdown(answer)
@@ -1231,11 +1207,13 @@ elif st.session_state.page == "Study Chat":
             st.rerun()
         else:
             st.warning(
-    "The AI response could not be generated. Your question is safe "
-    "in the chat history. Check your API key, internet connection, "
-    "or provider limit, then try again."
-)
+                "The AI response could not be generated. Your question "
+                "is safe in the chat history. Check your API key, internet "
+                "connection, or provider limit, then try again."
+            )
 
+
+# PERFORMANCE
 elif st.session_state.page == "Performance":
     show_heading(
         "Your Performance",
@@ -1245,25 +1223,16 @@ elif st.session_state.page == "Performance":
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        metric_card(
-            "🧠",
-            st.session_state.generated_quizzes,
-            "Quizzes created"
-        )
+        metric_card("🧠", st.session_state.generated_quizzes,
+                    "Quizzes created")
 
     with c2:
-        metric_card(
-            "📚",
-            st.session_state.notes_created,
-            "Notes created"
-        )
+        metric_card("📚", st.session_state.notes_created,
+                    "Notes created")
 
     with c3:
-        metric_card(
-            "💬",
-            len(st.session_state.chat_messages),
-            "Chat messages"
-        )
+        metric_card("💬", len(st.session_state.chat_messages),
+                    "Chat messages")
 
     st.markdown(
         '<div class="section-title">Quiz history</div>',
@@ -1286,9 +1255,10 @@ elif st.session_state.page == "Performance":
             </div>
             """, unsafe_allow_html=True)
     else:
-      st.info(
-    "There is no quiz history yet. Create your first quiz from the AI Quiz section."
-)
+        st.info(
+            "There is no quiz history yet. Create your first quiz "
+            "from the AI Quiz section."
+        )
 
     st.markdown(
         '<div class="section-title">Notes history</div>',
@@ -1309,8 +1279,9 @@ elif st.session_state.page == "Performance":
             """, unsafe_allow_html=True)
     else:
         st.info(
-    "There is no notes history yet. Generate notes from the PDF Notes section."
-)
+            "There is no notes history yet. Generate notes from "
+            "the PDF Notes section."
+        )
 
     st.caption(
         "Performance data currently stays in the active app session "
@@ -1318,6 +1289,7 @@ elif st.session_state.page == "Performance":
     )
 
 
+# SETTINGS
 elif st.session_state.page == "Settings":
     show_heading(
         "Settings",
@@ -1388,7 +1360,8 @@ elif st.session_state.page == "Settings":
         ):
             st.session_state.chat_messages = []
             st.session_state.last_activity = "Chat history cleared"
-    st.success("Chat history has been cleared.")
+
+            st.success("Chat history has been cleared.")
             st.rerun()
 
     st.markdown(
@@ -1410,9 +1383,9 @@ elif st.session_state.page == "Settings":
     """, unsafe_allow_html=True)
 
 
+# FOOTER
 st.markdown("""
 <div class="footer">
   STUDY BUDDY AI · Learn at your own pace · Keep making progress ✦
 </div>
 """, unsafe_allow_html=True)
-
