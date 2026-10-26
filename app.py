@@ -399,19 +399,7 @@ hr {
 
 def get_client():
     api_key = st.secrets.get("GROQ_API_KEY", "")
-    if not api_key:
-        st.error(
-            "GROQ_API_KEY missing hai. Streamlit Cloud ke "
-            "Settings → Secrets mein API key add karo."
-        )
-        return None
-    try:
-        return Groq(api_key=api_key)
-    except Exception as e:
-        st.error(f"AI connection setup nahi ho paya: {e}")
-        return None
-
-
+  
 def ask_ai(prompt, max_tokens=5000, temperature=0.4):
     client = get_client()
     if client is None:
@@ -424,11 +412,7 @@ def ask_ai(prompt, max_tokens=5000, temperature=0.4):
             temperature=temperature
         )
         return response.choices[0].message.content
-    except Exception as e:
-        st.error(f"AI request fail ho gayi: {e}")
-        return None
-
-
+  
 def extract_pdf_text(file):
     try:
         reader = PdfReader(file)
@@ -436,11 +420,7 @@ def extract_pdf_text(file):
         for page in reader.pages:
             pages.append(page.extract_text() or "")
         return "\n".join(pages).strip()
-    except Exception as e:
-        st.error(f"PDF read nahi ho payi: {e}")
-        return ""
-
-
+    
 def make_pdf(text):
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -451,6 +431,27 @@ def make_pdf(text):
         topMargin=45,
         bottomMargin=45
     )
+
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"],
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] li,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h1,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h2,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] h3,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] strong,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] em {
+    color: #17233c !important;
+    -webkit-text-fill-color: #17233c !important;
+    opacity: 1 !important;
+}
+
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] pre,
+[data-testid="stChatMessage"] [data-testid="stMarkdownContainer"] code {
+    color: #17233c !important;
+    -webkit-text-fill-color: #17233c !important;
+    opacity: 1 !important;
+}
+
     styles = getSampleStyleSheet()
 
     styles.add(ParagraphStyle(
@@ -1056,7 +1057,6 @@ elif st.session_state.page == "Study Chat":
     )
 
     if user_prompt:
-        # Save the question before calling the AI.
         st.session_state.chat_messages.append({
             "role": "user",
             "content": user_prompt
@@ -1108,16 +1108,7 @@ elif st.session_state.page == "Study Chat":
             })
 
             st.session_state.last_activity = "Used Study Chat"
-            st.rerun()
-
-        else:
-            # FIX: Do not delete the user's question on API failure.
-            st.warning(
-                "AI response nahi aa paya. Tumhara question chat history "
-                "mein safe hai. API key, internet connection ya provider "
-                "limit check karke dobara try karo."
-            )
-
+            st.rerun() 
 
 elif st.session_state.page == "Performance":
     show_heading(
