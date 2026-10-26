@@ -893,6 +893,4 @@ elif page == "Settings":
         st.success("Chat cleared.")
         st.rerun()
 
-    st.caption(
-        "Never share your Groq API key publicly. Keep it in Streamlit Secrets."
-    )
+   
